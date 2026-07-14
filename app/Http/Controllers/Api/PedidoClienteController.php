@@ -4,75 +4,129 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Pedido;
+use App\Models\DetallePedido;
+use App\Models\Producto;
+use App\Models\PedidoEstadoHistorial;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
-class PedidoClienteController extends Controller
+class PedidoClienteStoreController extends Controller
 {
-    // GET /api/mis-pedidos
-    public function index(Request $request)
+    public function store(Request $request)
     {
-        $user = $request->user();
-        $per = (int)($request->get('per_page',10));
-        $sort = $request->get('sort','fecha_pedido');
-        $order = $request->get('order','desc');
+        $data = $request->validate([
+            'forma_pago'        => 'nullable|string|max:50',
+            'direccion_entrega' => 'nullable|string|max:255',
+            'observacion'       => 'nullable|string|max:500',
+            'items'             => 'required|array|min:1',
+            'items.*.id_producto' => 'required|integer|exists:productos,id_producto',
+            'items.*.cantidad'    => 'required|integer|min:1|max:99',
+        ]);
 
-        $q = Pedido::with(['detalles.producto'])
-            ->where('id_cliente',$user->id_cliente);
+        $cliente = $request->user();
 
-        if ($request->filled('estado')) $q->where('estado',$request->estado);
-        if ($request->filled('desde'))  $q->where('fecha_pedido','>=',$request->desde);
-        if ($request->filled('hasta'))  $q->where('fecha_pedido','<=',$request->hasta);
-
-        return $q->orderBy($sort,$order)->paginate($per);
-    }
-
-    // GET /api/mis-pedidos/{id}
-    public function show($id, Request $request)
-    {
-        $user = $request->user();
-        $pedido = Pedido::with(['detalles.producto','historial'])
-            ->where('id_pedido',$id)
-            ->where('id_cliente',$user->id_cliente)
-            ->first();
-
-        if (!$pedido) return response()->json(['message'=>'Pedido no encontrado'],404);
-
-        return $pedido;
-    }
-    public function mios(Request $request)
-    {
-    $u = $request->user(); // cliente autenticado por Sanctum
-    if (!$u) return response()->json(['message' => 'No autenticado'], 401);
-
-    $q     = Pedido::query()->where('id_cliente', $u->id_cliente);
-    $desde = $request->query('desde', 'last'); // last | 3m | 1y
-    $idQ   = $request->query('q');             // buscar por id_pedido exacto
-
-    if (!empty($idQ)) {
-        $q->where('id_pedido', (int)$idQ);
-    } else {
-        // OJO: tu tabla usa fecha_pedido, no created_at
-        if ($desde === '3m') {
-            $q->where('fecha_pedido', '>=', now()->subMonths(3)->toDateString());
-        } elseif ($desde === '1y') {
-            $q->where('fecha_pedido', '>=', now()->subYear()->toDateString());
-        } else { // 'last' (último mes)
-            $q->where('fecha_pedido', '>=', now()->subMonth()->toDateString());
+        // ============================================
+        // 1. VALIDAR STOCK ANTES DE INICIAR LA TRANSACCIÓN
+        // ============================================
+        $erroresStock = [];
+        foreach ($data['items'] as $item) {
+            $producto = Producto::find($item['id_producto']);
+            if (!$producto) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Uno de los productos no existe.',
+                    'error'   => 'product_not_found',
+                ], 422);
+            }
+            if ($producto->stock < $item['cantidad']) {
+                $erroresStock[] = [
+                    'producto_id' => $producto->id_producto,
+                    'nombre'      => $producto->nombre,
+                    'stock_disponible' => $producto->stock,
+                    'cantidad_solicitada' => $item['cantidad'],
+                ];
+            }
         }
+
+        // Si hay problemas de stock, devolvemos error claro
+        if (!empty($erroresStock)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No hay suficiente stock para algunos productos.',
+                'error'   => 'insufficient_stock',
+                'detalles' => $erroresStock,
+            ], 422);
+        }
+
+        // ============================================
+        // 2. CREAR EL PEDIDO (si todo está bien)
+        // ============================================
+        return DB::transaction(function () use ($data, $cliente) {
+            $pedido = Pedido::create([
+                'id_cliente'        => $cliente->id_cliente,
+                'fecha_pedido'      => now(),
+                'estado'            => 'pendiente',
+                'total'             => 0,
+                'forma_pago'        => $data['forma_pago'] ?? null,
+                'direccion_entrega' => $data['direccion_entrega'] ?? null,
+                'observacion'       => $data['observacion'] ?? null,
+
+                // === CAMPOS DE COMPROBANTE ELECTRÓNICO (obligatorios) ===
+                'comprobante_tipo'  => 'boleta',      // puedes cambiar a 'factura' si prefieres
+                'comprobante_serie' => null,
+                'comprobante_numero'=> null,
+                'sunat_xml'         => null,
+                'sunat_pdf'         => null,
+                'sunat_cdr'         => null,
+            ]);
+
+            $total = 0;
+            foreach ($data['items'] as $item) {
+                $producto = Producto::findOrFail($item['id_producto']);
+                $precio = $producto->precio_venta;
+                $subtotal = $precio * $item['cantidad'];
+
+                DetallePedido::create([
+                    'id_pedido'       => $pedido->id_pedido,
+                    'id_producto'     => $producto->id_producto,
+                    'cantidad'        => $item['cantidad'],
+                    'precio_unitario' => $precio,
+                    'subtotal'        => $subtotal,
+                ]);
+
+                // Descontar stock
+                $producto->decrement('stock', $item['cantidad']);
+
+                $total += $subtotal;
+            }
+
+            $pedido->total = $total;
+            $pedido->save();
+
+            // Registrar historial
+            PedidoEstadoHistorial::create([
+                'id_pedido'  => $pedido->id_pedido,
+                'estado'     => 'pendiente',
+                'fecha'      => now(),
+                'comentario' => 'Pedido creado desde la aplicación móvil',
+            ]);
+
+            $pedido->load('detalles.producto');
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Pedido creado exitosamente',
+                'pedido'  => [
+                    'id_pedido'         => $pedido->id_pedido,
+                    'estado'            => $pedido->estado,
+                    'total'             => $pedido->total,
+                    'forma_pago'        => $pedido->forma_pago,
+                    'direccion_entrega' => $pedido->direccion_entrega,
+                    'observacion'       => $pedido->observacion,
+                    'fecha_pedido'      => $pedido->fecha_pedido,
+                    'detalles'          => $pedido->detalles,
+                ]
+            ], 201);
+        });
     }
-
-    $pedidos = $q->orderByDesc('fecha_pedido')->get([
-        'id_pedido',
-        'id_cliente',
-        'total',
-        'estado',
-        'fecha_pedido as fecha',
-        'forma_pago',
-        'direccion_entrega'
-    ]);
-
-    return response()->json($pedidos);
-    }
-
-
 }

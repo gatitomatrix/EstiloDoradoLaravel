@@ -7,9 +7,14 @@ use App\Models\Cliente;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Mail;
+use App\Mail\WelcomeMail;   // ← Importante: agrega esta línea
 
 class AuthClienteController extends Controller
 {
+    /**
+     * Registro de nuevo cliente
+     */
     public function register(Request $request)
     {
         $data = $request->validate([
@@ -18,64 +23,90 @@ class AuthClienteController extends Controller
             'telefono'  => 'nullable|string|max:20',
             'email'     => 'required|email|max:100|unique:clientes,email',
             'direccion' => 'nullable|string',
-            'contrasena'=> 'required|string|min:6|max:255',
+            'password'  => 'required|string|min:6|confirmed',
         ]);
 
-        $data['contrasena'] = Hash::make($data['contrasena']);
+        $cliente = Cliente::create([
+            'nombre'    => $data['nombre'],
+            'apellido'  => $data['apellido'] ?? null,
+            'telefono'  => $data['telefono'] ?? null,
+            'email'     => $data['email'],
+            'direccion' => $data['direccion'] ?? null,
+            'contrasena'=> Hash::make($data['password']),
+        ]);
 
-        $cliente = Cliente::create($data);
         $token = $cliente->createToken('token_cliente')->plainTextToken;
 
+        // === ENVÍO DE CORREO DE BIENVENIDA ===
+        Mail::to($cliente->email)->send(new WelcomeMail($cliente));
+
         return response()->json([
+            'success' => true,
+            'message' => 'Usuario registrado exitosamente',
             'cliente' => [
                 'id_cliente' => $cliente->id_cliente,
                 'nombre'     => $cliente->nombre,
                 'apellido'   => $cliente->apellido,
                 'telefono'   => $cliente->telefono,
-                'direccion'  => $cliente->direccion,
                 'email'      => $cliente->email,
+                'direccion'  => $cliente->direccion,
             ],
-            'token'   => $token,
+            'token' => $token,
         ], 201);
     }
 
+    /**
+     * Login de cliente
+     */
     public function login(Request $request)
     {
         $credentials = $request->validate([
-            'email'      => 'required|email',
-            'contrasena' => 'required|string',
+            'email'    => 'required|email',
+            'password' => 'required|string',
         ]);
 
         $cliente = Cliente::where('email', $credentials['email'])->first();
+
         if (!$cliente) {
-            return response()->json(['message' => 'Credenciales inválidas'], 401);
+            return response()->json([
+                'success' => false,
+                'message' => 'Credenciales inválidas'
+            ], 401);
         }
 
         $stored = $cliente->getAuthPassword();
         $looksBcrypt = is_string($stored) && Str::startsWith($stored, '$2y$');
 
         if ($looksBcrypt) {
-            if (!Hash::check($credentials['contrasena'], $stored)) {
-                return response()->json(['message' => 'Credenciales inválidas'], 401);
+            if (!Hash::check($credentials['password'], $stored)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Credenciales inválidas'
+                ], 401);
             }
         } else {
-            if ($credentials['contrasena'] !== $stored) {
-                return response()->json(['message' => 'Credenciales inválidas'], 401);
+            if ($credentials['password'] !== $stored) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Credenciales inválidas'
+                ], 401);
             }
-            $cliente->contrasena = Hash::make($credentials['contrasena']);
+            $cliente->contrasena = Hash::make($credentials['password']);
             $cliente->save();
         }
 
         $token = $cliente->createToken('token_cliente')->plainTextToken;
 
         return response()->json([
+            'success' => true,
+            'message' => 'Login exitoso',
             'cliente' => [
                 'id_cliente' => $cliente->id_cliente,
                 'nombre'     => $cliente->nombre,
                 'apellido'   => $cliente->apellido,
                 'telefono'   => $cliente->telefono,
-                'direccion'  => $cliente->direccion,
                 'email'      => $cliente->email,
+                'direccion'  => $cliente->direccion,
             ],
             'token' => $token,
         ]);
@@ -83,8 +114,7 @@ class AuthClienteController extends Controller
 
     public function me(Request $request)
     {
-        $user = $request->user(); // auth:sanctum
-        // 🔒 Si llega un token de EMPLEADO, corta con 401 (antes te daba 500)
+        $user = $request->user();
         if (!$user || !($user instanceof Cliente)) {
             return response()->json(['message' => 'Token no válido para CLIENTE'], 401);
         }
@@ -137,7 +167,7 @@ class AuthClienteController extends Controller
     public function checkEmail(Request $request)
     {
         $data = $request->validate(['email' => 'required|email']);
-        $exists = \App\Models\Cliente::where('email', $data['email'])->exists();
+        $exists = Cliente::where('email', $data['email'])->exists();
         return $exists
             ? response()->json(['exists' => true], 200)
             : response()->json(['exists' => false], 404);
@@ -149,10 +179,13 @@ class AuthClienteController extends Controller
             'email'      => 'required|email',
             'contrasena' => 'required|string|min:6|max:255',
         ]);
-        $cliente = \App\Models\Cliente::where('email', $data['email'])->first();
-        if (!$cliente) return response()->json(['message' => 'Cliente no encontrado'], 404);
 
-        $cliente->contrasena = \Illuminate\Support\Facades\Hash::make($data['contrasena']);
+        $cliente = Cliente::where('email', $data['email'])->first();
+        if (!$cliente) {
+            return response()->json(['message' => 'Cliente no encontrado'], 404);
+        }
+
+        $cliente->contrasena = Hash::make($data['contrasena']);
         $cliente->save();
 
         return response()->json(['message' => 'Contraseña actualizada'], 200);

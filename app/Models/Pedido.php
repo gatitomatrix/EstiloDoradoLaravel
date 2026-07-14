@@ -18,17 +18,20 @@ class Pedido extends Model
         'forma_pago',
         'culqi_id',
         'direccion_entrega',
-        'comprobante_tipo',   // 'boleta'|'factura' (o 'BO'|'FA' si luego lo cambias)
+        'observacion',           // ← Agregado
+        'comprobante_tipo',
         'comprobante_serie',
         'comprobante_numero',
-        'sunat_xml',          // ruta en /storage/...
-        'sunat_pdf',          // ruta en /storage/...
-        'sunat_cdr',          // ruta en /storage/...
+        'sunat_xml',
+        'sunat_pdf',
+        'sunat_cdr',
     ];
 
     protected $casts = [
         'fecha_pedido' => 'datetime',
     ];
+
+    // ==================== RELACIONES ====================
 
     public function detalles()
     {

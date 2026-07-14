@@ -259,9 +259,11 @@ Route::match(['GET','HEAD'],'fe/pdf/{tipo}/{serie}/{name}', function ($tipo, $se
     ]);
 })->name('fe.pdf');
 
-// Preflight genérico
-Route::options('{any}', fn() => response()->noContent()
-    ->header('Access-Control-Allow-Origin','*')
-    ->header('Access-Control-Allow-Methods','GET,HEAD,OPTIONS')
-    ->header('Access-Control-Allow-Headers','*')
-)->where('any','.*');
+// Preflight CORS global (soluciona múltiples headers)
+Route::options('{any}', function () {
+    return response()->noContent()
+        ->header('Access-Control-Allow-Origin', '*')
+        ->header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
+        ->header('Access-Control-Allow-Headers', '*')
+        ->header('Access-Control-Allow-Credentials', 'true');
+})->where('any', '.*');

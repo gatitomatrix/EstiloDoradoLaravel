@@ -1,17 +1,11 @@
 <?php
 
 return [
-
-    'paths' => ['api/*', 'sanctum/csrf-cookie', 'storage/*'],
+    'paths' => ['api/*', 'sanctum/csrf-cookie', '*'],
 
     'allowed_methods' => ['*'],
 
-    'allowed_origins' => [
-        'http://localhost:4200',
-        'http://127.0.0.1:4200',
-        'https://estilodorado.onrender.com',
-        'https://backendestilodorado.onrender.com',
-    ],
+    'allowed_origins' => ['*'],   // ← Temporal pero efectivo para desarrollo
 
     'allowed_origins_patterns' => [],
 
@@ -19,8 +13,7 @@ return [
 
     'exposed_headers' => [],
 
-    'max_age' => 0,
+    'max_age' => 3600,
 
     'supports_credentials' => true,
-
 ];
