@@ -22,8 +22,6 @@ class PagoCulqiController extends Controller
             // Base request con Bearer de Culqi
             $http = Http::withToken(config('services.culqi.private_key'));
 
-            // ⚠️ SOLO EN LOCAL: desactiva verificación SSL para evitar cURL error 60
-            // En prod (APP_ENV != local) NO se toca y queda 100% seguro
             if (app()->environment('local')) {
                 $http = $http->withOptions(['verify' => false]);
             }
