@@ -190,14 +190,18 @@ class PedidoPagoController extends Controller
             $pedido->total = $total;
             $pedido->save();
 
-            /** @var ComprobanteService $svc */
-            $svc = app(ComprobanteService::class);
-            $res = $svc->emitir($pedido, $data);
-
-            $pedido->sunat_pdf = $res['pdf'];
-            $pedido->sunat_xml = $res['xml'];
-            $pedido->sunat_cdr = $res['cdr'] ?? null;
-            $pedido->save();
+            // Emisión SUNAT: no tumbar el pedido si falla (timeout/cert)
+            try {
+                /** @var ComprobanteService $svc */
+                $svc = app(ComprobanteService::class);
+                $res = $svc->emitir($pedido, $data);
+                $pedido->sunat_pdf = $res['pdf'] ?? null;
+                $pedido->sunat_xml = $res['xml'] ?? null;
+                $pedido->sunat_cdr = $res['cdr'] ?? null;
+                $pedido->save();
+            } catch (\Throwable $e) {
+                \Log::warning('[confirmar] emitir CPE falló pedido '.$pedido->id_pedido.': '.$e->getMessage());
+            }
 
             $pedido->load('detalles.producto');
 
