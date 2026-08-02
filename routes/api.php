@@ -85,6 +85,7 @@ Route::middleware(['auth:sanctum','abilities:client'])->group(function () {
     Route::post('checkout/confirmar', [CheckoutController::class, 'confirmar']);
     Route::post('pedidos/confirmar', [PedidoPagoController::class, 'confirmar']);
     Route::get('pedidos/{id}',       [PedidoPagoController::class, 'show']);
+    Route::post('pedidos/{id}/cancelar', [PedidoPagoController::class, 'cancelar']);
 });
 
 // ===================================================================================

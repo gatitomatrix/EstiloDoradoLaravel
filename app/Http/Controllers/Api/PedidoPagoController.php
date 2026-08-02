@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Pedido;
 use App\Models\DetallePedido;
 use App\Models\Producto;
+use App\Models\PedidoEstadoHistorial;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use App\Services\ComprobanteService;
@@ -123,6 +124,15 @@ class PedidoPagoController extends Controller
                     'sunat_xml' => null,
                     'sunat_cdr' => null,
                     'comprobante' => null, // <- clave para el front
+                    'detalles' => $pedido->detalles()->with('producto')->get()->map(function ($d) {
+                        return [
+                            'id_producto'     => $d->id_producto,
+                            'producto'        => $d->producto?->nombre,
+                            'cantidad'        => $d->cantidad,
+                            'precio_unitario' => $d->precio_unitario,
+                            'subtotal'        => $d->cantidad * $d->precio_unitario,
+                        ];
+                    }),
 
                 ], 201);
             });
@@ -224,6 +234,8 @@ class PedidoPagoController extends Controller
             $xmlUrl = route('fe.xml', ['tipo' => $tipo, 'serie' => $pedido->comprobante_serie, 'name' => "{$friendly}.xml"]);
             $cdrUrl = route('fe.cdr', ['tipo' => $tipo, 'name'  => "R-{$friendly}.zip"]);
 
+            $pedido->load('detalles.producto');
+
             return response()->json([
                 'id_pedido'         => $pedido->id_pedido,
                 'fecha_pedido'      => $pedido->fecha_pedido?->format('Y-m-d H:i:s'),
@@ -244,6 +256,15 @@ class PedidoPagoController extends Controller
                     'xml'    => $xmlUrl,
                     'cdr'    => $cdrUrl,
                 ],
+                'detalles' => $pedido->detalles->map(function ($d) {
+                    return [
+                        'id_producto'     => $d->id_producto,
+                        'producto'        => $d->producto?->nombre,
+                        'cantidad'        => $d->cantidad,
+                        'precio_unitario' => $d->precio_unitario,
+                        'subtotal'        => $d->cantidad * $d->precio_unitario,
+                    ];
+                }),
             ], 201);
         });
     }
@@ -297,5 +318,96 @@ class PedidoPagoController extends Controller
                 ];
             }),
         ]);
+    }
+
+    /**
+     * POST /api/pedidos/{id}/cancelar
+     * Cliente cancela solo pedidos en estado "pendiente".
+     * Si el stock se descontó al crear (POST /pedidos antiguo), se restaura.
+     * Pedidos de /pedidos/confirmar en efectivo no descontaban stock: no se toca inventario.
+     */
+    public function cancelar($id, Request $request)
+    {
+        $data = $request->validate([
+            'motivo' => 'nullable|string|max:255',
+        ]);
+
+        $user = $request->user();
+
+        return DB::transaction(function () use ($id, $user, $data) {
+            $pedido = Pedido::where('id_pedido', $id)
+                ->where('id_cliente', $user->id_cliente)
+                ->with('detalles')
+                ->firstOrFail();
+
+            if (strtolower((string) $pedido->estado) !== 'pendiente') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Solo se pueden cancelar pedidos pendientes de pago.',
+                    'estado'  => $pedido->estado,
+                ], 422);
+            }
+
+            $anterior = $pedido->estado;
+            $pedido->estado = 'cancelado';
+            $pedido->save();
+
+            // Restaurar stock solo si el pedido se creó por la ruta antigua
+            // (historial con comentario "aplicación móvil") o si tiene descuento de stock.
+            // Heurística segura: si existe historial de creación con ese comentario, o
+            // forma_pago no-efectivo pendiente (flujo viejo).
+            $restaurar = PedidoEstadoHistorial::where('id_pedido', $pedido->id_pedido)
+                ->where('comentario', 'like', '%aplicación móvil%')
+                ->exists();
+
+            // También restaurar si no es el flujo "efectivo" de confirmar (EF)
+            if (!$restaurar && $pedido->comprobante_tipo !== 'EF') {
+                // Flujo viejo POST /pedidos usaba BO + numero 0
+                if ($pedido->comprobante_tipo === 'BO' && (int) $pedido->comprobante_numero === 0) {
+                    $restaurar = true;
+                }
+            }
+
+            if ($restaurar) {
+                foreach ($pedido->detalles as $d) {
+                    Producto::where('id_producto', $d->id_producto)
+                        ->increment('stock', (int) $d->cantidad);
+                }
+            }
+
+            PedidoEstadoHistorial::create([
+                'id_pedido'       => $pedido->id_pedido,
+                'estado_anterior' => $anterior,
+                'estado_nuevo'    => 'cancelado',
+                'fecha'           => now(),
+                'comentario'      => $data['motivo'] ?? 'Cancelado por el cliente',
+            ]);
+
+            $pedido->load('detalles.producto');
+
+            return response()->json([
+                'success'           => true,
+                'message'           => 'Pedido cancelado',
+                'id_pedido'         => $pedido->id_pedido,
+                'fecha_pedido'      => $pedido->fecha_pedido?->format('Y-m-d H:i:s'),
+                'estado'            => $pedido->estado,
+                'total'             => $pedido->total,
+                'forma_pago'        => $pedido->forma_pago,
+                'direccion_entrega' => $pedido->direccion_entrega,
+                'sunat_pdf'         => null,
+                'sunat_xml'         => null,
+                'sunat_cdr'         => null,
+                'comprobante'       => null,
+                'detalles' => $pedido->detalles->map(function ($d) {
+                    return [
+                        'id_producto'     => $d->id_producto,
+                        'producto'        => $d->producto?->nombre,
+                        'cantidad'        => $d->cantidad,
+                        'precio_unitario' => $d->precio_unitario,
+                        'subtotal'        => $d->cantidad * $d->precio_unitario,
+                    ];
+                }),
+            ]);
+        });
     }
 }
