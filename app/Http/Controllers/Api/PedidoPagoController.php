@@ -33,6 +33,7 @@ class PedidoPagoController extends Controller
         $tipo  = $p->comprobante_tipo;
         $serie = $p->comprobante_serie;
         $num8  = str_pad((string)$p->comprobante_numero, 8, '0', STR_PAD_LEFT);
+        $emitido = $this->comprobanteEmitido($p);
 
         return [
             'id_pedido'         => $p->id_pedido,
@@ -42,10 +43,10 @@ class PedidoPagoController extends Controller
             'forma_pago'        => $p->forma_pago,
             'direccion_entrega' => $p->direccion_entrega,
             'producto_label'    => $label,
-            'comprobante_tipo'  => $tipo,
-            'comprobante_serie' => $serie,
-            'comprobante_numero'=> $p->comprobante_numero,
-            'friendly'          => $serie && $p->comprobante_numero ? "{$serie}-{$num8}" : null,
+            'comprobante_tipo'  => $emitido ? $tipo : null,
+            'comprobante_serie' => $emitido ? $serie : null,
+            'comprobante_numero'=> $emitido ? $p->comprobante_numero : null,
+            'friendly'          => $emitido && $serie && $p->comprobante_numero ? "{$serie}-{$num8}" : null,
         ];
     });
 
@@ -111,30 +112,10 @@ class PedidoPagoController extends Controller
                 $pedido->total = $total;
                 $pedido->save();
 
+                $pedido->load('detalles.producto');
+
                 // Respuesta (sin comprobante)
-                return response()->json([
-                    'id_pedido'         => $pedido->id_pedido,
-                    'fecha_pedido'      => $pedido->fecha_pedido?->format('Y-m-d H:i:s'),
-                    'estado'            => $pedido->estado,
-                    'total'             => $pedido->total,
-                    'forma_pago'        => $pedido->forma_pago,
-                    'direccion_entrega' => $pedido->direccion_entrega,
-
-                    'sunat_pdf' => null,
-                    'sunat_xml' => null,
-                    'sunat_cdr' => null,
-                    'comprobante' => null, // <- clave para el front
-                    'detalles' => $pedido->detalles()->with('producto')->get()->map(function ($d) {
-                        return [
-                            'id_producto'     => $d->id_producto,
-                            'producto'        => $d->producto?->nombre,
-                            'cantidad'        => $d->cantidad,
-                            'precio_unitario' => $d->precio_unitario,
-                            'subtotal'        => $d->cantidad * $d->precio_unitario,
-                        ];
-                    }),
-
-                ], 201);
+                return response()->json($this->pedidoPayload($pedido), 201);
             });
         }
 
@@ -171,19 +152,11 @@ class PedidoPagoController extends Controller
             $tipoElegido = strtoupper($data['comprobante']) === 'FA' ? 'FA' : 'BO';
         }
 
-        $nextNumero = function(string $serie){
-            $last = DB::table('pedidos')
-                ->where('comprobante_serie',$serie)
-                ->selectRaw('COALESCE(MAX(CAST(comprobante_numero AS UNSIGNED)),0) as n')
-                ->value('n');
-            return (int)$last + 1;
-        };
-
-        return DB::transaction(function () use ($data, $user, $tipoElegido, $nextNumero) {
+        return DB::transaction(function () use ($data, $user, $tipoElegido) {
 
             // Serie & número antes del insert para evitar NOT NULL
             $serie  = $tipoElegido === 'FA' ? 'F001' : 'B001';
-            $numero = $nextNumero($serie);
+            $numero = $this->nextNumero($serie);
 
             $pedido = new Pedido();
             $pedido->id_cliente         = $user->id_cliente;
@@ -226,46 +199,9 @@ class PedidoPagoController extends Controller
             $pedido->sunat_cdr = $res['cdr'] ?? null;
             $pedido->save();
 
-            $tipo = $pedido->comprobante_tipo;
-            $num8 = str_pad((string)$pedido->comprobante_numero, 8, '0', STR_PAD_LEFT);
-            $friendly = "{$pedido->comprobante_serie}-{$num8}";
-
-            $pdfUrl = route('fe.pdf', ['tipo' => $tipo, 'serie' => $pedido->comprobante_serie, 'name' => "{$friendly}.pdf"]);
-            $xmlUrl = route('fe.xml', ['tipo' => $tipo, 'serie' => $pedido->comprobante_serie, 'name' => "{$friendly}.xml"]);
-            $cdrUrl = route('fe.cdr', ['tipo' => $tipo, 'name'  => "R-{$friendly}.zip"]);
-
             $pedido->load('detalles.producto');
 
-            return response()->json([
-                'id_pedido'         => $pedido->id_pedido,
-                'fecha_pedido'      => $pedido->fecha_pedido?->format('Y-m-d H:i:s'),
-                'estado'            => $pedido->estado,
-                'total'             => $pedido->total,
-                'forma_pago'        => $pedido->forma_pago,
-                'direccion_entrega' => $pedido->direccion_entrega,
-
-                'sunat_pdf' => $pdfUrl,
-                'sunat_xml' => $xmlUrl,
-                'sunat_cdr' => $cdrUrl,
-
-                'comprobante' => [
-                    'tipo'   => $tipo,
-                    'serie'  => $pedido->comprobante_serie,
-                    'numero' => $pedido->comprobante_numero,
-                    'pdf'    => $pdfUrl,
-                    'xml'    => $xmlUrl,
-                    'cdr'    => $cdrUrl,
-                ],
-                'detalles' => $pedido->detalles->map(function ($d) {
-                    return [
-                        'id_producto'     => $d->id_producto,
-                        'producto'        => $d->producto?->nombre,
-                        'cantidad'        => $d->cantidad,
-                        'precio_unitario' => $d->precio_unitario,
-                        'subtotal'        => $d->cantidad * $d->precio_unitario,
-                    ];
-                }),
-            ], 201);
+            return response()->json($this->pedidoPayload($pedido), 201);
         });
     }
 
@@ -277,16 +213,239 @@ class PedidoPagoController extends Controller
             ->with('detalles.producto')
             ->firstOrFail();
 
-        $tipo  = $p->comprobante_tipo;    // 'FA'|'BO'| 'EF'
+        return response()->json($this->pedidoPayload($p));
+    }
+
+    /**
+     * POST /api/pedidos/{id}/cancelar
+     */
+    public function cancelar($id, Request $request)
+    {
+        $data = $request->validate([
+            'motivo' => 'nullable|string|max:255',
+        ]);
+
+        $user = $request->user();
+
+        return DB::transaction(function () use ($id, $user, $data) {
+            $pedido = Pedido::where('id_pedido', $id)
+                ->where('id_cliente', $user->id_cliente)
+                ->with('detalles')
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            if (strtolower((string) $pedido->estado) !== 'pendiente') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Solo se pueden cancelar pedidos pendientes de pago.',
+                    'estado'  => $pedido->estado,
+                ], 422);
+            }
+
+            $anterior = $pedido->estado;
+            $pedido->estado = 'cancelado';
+            $pedido->save();
+
+            // Restaurar stock: pedidos viejos (POST /pedidos) descontaban stock.
+            $restaurar = false;
+            try {
+                $restaurar = PedidoEstadoHistorial::where('id_pedido', $pedido->id_pedido)
+                    ->where('comentario', 'like', '%aplicación móvil%')
+                    ->exists();
+            } catch (\Throwable $e) {
+                $restaurar = false;
+            }
+
+            if (!$restaurar && $pedido->comprobante_tipo !== 'EF') {
+                if ($pedido->comprobante_tipo === 'BO' && (int) $pedido->comprobante_numero === 0) {
+                    $restaurar = true;
+                }
+            }
+            // efectivo de confirmar (EF) no descontó stock → no restaurar
+            if ($pedido->comprobante_tipo === 'EF') {
+                $restaurar = false;
+            }
+
+            if ($restaurar) {
+                foreach ($pedido->detalles as $d) {
+                    Producto::where('id_producto', $d->id_producto)
+                        ->increment('stock', (int) $d->cantidad);
+                }
+            }
+
+            try {
+                PedidoEstadoHistorial::create([
+                    'id_pedido'       => $pedido->id_pedido,
+                    'estado_anterior' => $anterior,
+                    'estado_nuevo'    => 'cancelado',
+                    'fecha'           => now(),
+                    'comentario'      => $data['motivo'] ?? 'Cancelado por el cliente',
+                ]);
+            } catch (\Throwable $e) {
+                // no bloquear cancelación si falla el historial
+            }
+
+            $pedido->load('detalles.producto');
+
+            $payload = $this->pedidoPayload($pedido);
+            $payload['success'] = true;
+            $payload['message'] = 'Pedido cancelado';
+            return response()->json($payload);
+        });
+    }
+
+    /**
+     * POST /api/pedidos/{id}/pagar
+     * Completa el pago de un pedido pendiente (yape/tarjeta) y emite comprobante.
+     */
+    public function pagar($id, Request $request)
+    {
+        $data = $request->validate([
+            'forma_pago'  => 'required|in:tarjeta,yape',
+            'culqi_id'    => 'required|string',
+            'comprobante' => 'nullable|in:BO,FA,bo,fa',
+            'factura'     => 'nullable|array',
+            'boleta'      => 'nullable|array',
+        ]);
+
+        $hasFA = !empty($data['factura']);
+        $hasBO = !empty($data['boleta']);
+        if (!$hasFA && !$hasBO) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Debes ingresar datos de FACTURA o BOLETA.',
+            ], 422);
+        }
+
+        $tipoElegido = $hasFA ? 'FA' : 'BO';
+        if (!empty($data['comprobante'])) {
+            $tipoElegido = strtoupper($data['comprobante']) === 'FA' ? 'FA' : 'BO';
+        }
+        if ($tipoElegido === 'FA' && !$hasFA) {
+            return response()->json(['success' => false, 'message' => 'Faltan datos de factura'], 422);
+        }
+        if ($tipoElegido === 'BO' && !$hasBO) {
+            return response()->json(['success' => false, 'message' => 'Faltan datos de boleta'], 422);
+        }
+
+        $user = $request->user();
+
+        return DB::transaction(function () use ($id, $user, $data, $tipoElegido) {
+            $pedido = Pedido::where('id_pedido', $id)
+                ->where('id_cliente', $user->id_cliente)
+                ->with('detalles.producto')
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            if (strtolower((string) $pedido->estado) !== 'pendiente') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Este pedido ya no está pendiente de pago.',
+                    'estado'  => $pedido->estado,
+                ], 422);
+            }
+
+            if (strtolower((string) $pedido->forma_pago) === 'efectivo') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Los pedidos en efectivo se pagan en tienda.',
+                ], 422);
+            }
+
+            $serie  = $tipoElegido === 'FA' ? 'F001' : 'B001';
+            $numero = $this->nextNumero($serie);
+
+            $pedido->forma_pago         = $data['forma_pago'];
+            $pedido->culqi_id           = $data['culqi_id'];
+            $pedido->estado             = 'pagado';
+            $pedido->comprobante_tipo   = $tipoElegido;
+            $pedido->comprobante_serie  = $serie;
+            $pedido->comprobante_numero = $numero;
+            $pedido->save();
+
+            try {
+                /** @var ComprobanteService $svc */
+                $svc = app(ComprobanteService::class);
+                $res = $svc->emitir($pedido, $data);
+                $pedido->sunat_pdf = $res['pdf'] ?? null;
+                $pedido->sunat_xml = $res['xml'] ?? null;
+                $pedido->sunat_cdr = $res['cdr'] ?? null;
+                $pedido->save();
+            } catch (\Throwable $e) {
+                // Si falla SUNAT, igual dejamos pagado con serie/número
+            }
+
+            try {
+                PedidoEstadoHistorial::create([
+                    'id_pedido'       => $pedido->id_pedido,
+                    'estado_anterior' => 'pendiente',
+                    'estado_nuevo'    => 'pagado',
+                    'fecha'           => now(),
+                    'comentario'      => 'Pago completado por el cliente (app móvil)',
+                ]);
+            } catch (\Throwable $e) {
+            }
+
+            $pedido->load('detalles.producto');
+            $payload = $this->pedidoPayload($pedido);
+            $payload['success'] = true;
+            $payload['message'] = 'Pago registrado';
+            return response()->json($payload);
+        });
+    }
+
+    // ----------------- helpers -----------------
+
+    private function nextNumero(string $serie): int
+    {
+        $last = DB::table('pedidos')
+            ->where('comprobante_serie', $serie)
+            ->selectRaw('COALESCE(MAX(CAST(comprobante_numero AS UNSIGNED)),0) as n')
+            ->value('n');
+        return (int)$last + 1;
+    }
+
+    /** Comprobante real emitido (no placeholders BO-00000000 de pedidos pendientes). */
+    private function comprobanteEmitido(Pedido $p): bool
+    {
+        $tipo = strtoupper((string) $p->comprobante_tipo);
+        if (!in_array($tipo, ['FA', 'BO'], true)) {
+            return false;
+        }
+        if ((int) $p->comprobante_numero <= 0) {
+            return false;
+        }
+        $estado = strtolower((string) $p->estado);
+        if (!in_array($estado, ['pagado', 'enviado', 'entregado', 'completado'], true)) {
+            return false;
+        }
+        return true;
+    }
+
+    private function pedidoPayload(Pedido $p): array
+    {
+        $tipo  = $p->comprobante_tipo;
         $serie = $p->comprobante_serie;
         $num8  = str_pad((string)$p->comprobante_numero, 8, '0', STR_PAD_LEFT);
         $friendly = "{$serie}-{$num8}";
+        $emitido = $this->comprobanteEmitido($p);
 
-        $pdfUrl = $p->sunat_pdf ? route('fe.pdf', ['tipo' => $tipo, 'serie' => $serie, 'name' => "{$friendly}.pdf"]) : null;
-        $xmlUrl = $p->sunat_xml ? route('fe.xml', ['tipo' => $tipo, 'serie' => $serie, 'name' => "{$friendly}.xml"]) : null;
-        $cdrUrl = $p->sunat_cdr ? route('fe.cdr', ['tipo' => $tipo, 'name'  => "R-{$friendly}.zip"]) : null;
+        $pdfUrl = null;
+        $xmlUrl = null;
+        $cdrUrl = null;
+        if ($emitido) {
+            try {
+                $pdfUrl = $p->sunat_pdf ? route('fe.pdf', ['tipo' => $tipo, 'serie' => $serie, 'name' => "{$friendly}.pdf"]) : null;
+                $xmlUrl = $p->sunat_xml ? route('fe.xml', ['tipo' => $tipo, 'serie' => $serie, 'name' => "{$friendly}.xml"]) : null;
+                $cdrUrl = $p->sunat_cdr ? route('fe.cdr', ['tipo' => $tipo, 'name'  => "R-{$friendly}.zip"]) : null;
+            } catch (\Throwable $e) {
+                $pdfUrl = $p->sunat_pdf;
+                $xmlUrl = $p->sunat_xml;
+                $cdrUrl = $p->sunat_cdr;
+            }
+        }
 
-        return response()->json([
+        return [
             'id_pedido'         => $p->id_pedido,
             'fecha_pedido'      => $p->fecha_pedido?->format('Y-m-d H:i:s'),
             'estado'            => $p->estado,
@@ -298,8 +457,7 @@ class PedidoPagoController extends Controller
             'sunat_xml' => $xmlUrl,
             'sunat_cdr' => $cdrUrl,
 
-            // Si fue efectivo, el front sabrá que no hay comprobante
-            'comprobante' => ($tipo === 'FA' || $tipo === 'BO') ? [
+            'comprobante' => $emitido ? [
                 'tipo'   => $tipo,
                 'serie'  => $serie,
                 'numero' => $p->comprobante_numero,
@@ -317,97 +475,6 @@ class PedidoPagoController extends Controller
                     'subtotal'        => $d->cantidad * $d->precio_unitario,
                 ];
             }),
-        ]);
-    }
-
-    /**
-     * POST /api/pedidos/{id}/cancelar
-     * Cliente cancela solo pedidos en estado "pendiente".
-     * Si el stock se descontó al crear (POST /pedidos antiguo), se restaura.
-     * Pedidos de /pedidos/confirmar en efectivo no descontaban stock: no se toca inventario.
-     */
-    public function cancelar($id, Request $request)
-    {
-        $data = $request->validate([
-            'motivo' => 'nullable|string|max:255',
-        ]);
-
-        $user = $request->user();
-
-        return DB::transaction(function () use ($id, $user, $data) {
-            $pedido = Pedido::where('id_pedido', $id)
-                ->where('id_cliente', $user->id_cliente)
-                ->with('detalles')
-                ->firstOrFail();
-
-            if (strtolower((string) $pedido->estado) !== 'pendiente') {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Solo se pueden cancelar pedidos pendientes de pago.',
-                    'estado'  => $pedido->estado,
-                ], 422);
-            }
-
-            $anterior = $pedido->estado;
-            $pedido->estado = 'cancelado';
-            $pedido->save();
-
-            // Restaurar stock solo si el pedido se creó por la ruta antigua
-            // (historial con comentario "aplicación móvil") o si tiene descuento de stock.
-            // Heurística segura: si existe historial de creación con ese comentario, o
-            // forma_pago no-efectivo pendiente (flujo viejo).
-            $restaurar = PedidoEstadoHistorial::where('id_pedido', $pedido->id_pedido)
-                ->where('comentario', 'like', '%aplicación móvil%')
-                ->exists();
-
-            // También restaurar si no es el flujo "efectivo" de confirmar (EF)
-            if (!$restaurar && $pedido->comprobante_tipo !== 'EF') {
-                // Flujo viejo POST /pedidos usaba BO + numero 0
-                if ($pedido->comprobante_tipo === 'BO' && (int) $pedido->comprobante_numero === 0) {
-                    $restaurar = true;
-                }
-            }
-
-            if ($restaurar) {
-                foreach ($pedido->detalles as $d) {
-                    Producto::where('id_producto', $d->id_producto)
-                        ->increment('stock', (int) $d->cantidad);
-                }
-            }
-
-            PedidoEstadoHistorial::create([
-                'id_pedido'       => $pedido->id_pedido,
-                'estado_anterior' => $anterior,
-                'estado_nuevo'    => 'cancelado',
-                'fecha'           => now(),
-                'comentario'      => $data['motivo'] ?? 'Cancelado por el cliente',
-            ]);
-
-            $pedido->load('detalles.producto');
-
-            return response()->json([
-                'success'           => true,
-                'message'           => 'Pedido cancelado',
-                'id_pedido'         => $pedido->id_pedido,
-                'fecha_pedido'      => $pedido->fecha_pedido?->format('Y-m-d H:i:s'),
-                'estado'            => $pedido->estado,
-                'total'             => $pedido->total,
-                'forma_pago'        => $pedido->forma_pago,
-                'direccion_entrega' => $pedido->direccion_entrega,
-                'sunat_pdf'         => null,
-                'sunat_xml'         => null,
-                'sunat_cdr'         => null,
-                'comprobante'       => null,
-                'detalles' => $pedido->detalles->map(function ($d) {
-                    return [
-                        'id_producto'     => $d->id_producto,
-                        'producto'        => $d->producto?->nombre,
-                        'cantidad'        => $d->cantidad,
-                        'precio_unitario' => $d->precio_unitario,
-                        'subtotal'        => $d->cantidad * $d->precio_unitario,
-                    ];
-                }),
-            ]);
-        });
+        ];
     }
 }
