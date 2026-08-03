@@ -8,7 +8,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Mail;
-use App\Mail\WelcomeMail;   // ← Importante: agrega esta línea
+use Illuminate\Support\Facades\Log;
+use App\Mail\WelcomeMail;
 
 class AuthClienteController extends Controller
 {
@@ -17,6 +18,16 @@ class AuthClienteController extends Controller
      */
     public function register(Request $request)
     {
+        // Acepta password (móvil/API estándar) o contrasena (Angular)
+        if (!$request->filled('password') && $request->filled('contrasena')) {
+            $request->merge([
+                'password' => $request->input('contrasena'),
+                'password_confirmation' => $request->input('password_confirmation')
+                    ?? $request->input('contrasena_confirmation')
+                    ?? $request->input('contrasena'),
+            ]);
+        }
+
         $data = $request->validate([
             'nombre'    => 'required|string|max:100',
             'apellido'  => 'nullable|string|max:100',
@@ -24,6 +35,10 @@ class AuthClienteController extends Controller
             'email'     => 'required|email|max:100|unique:clientes,email',
             'direccion' => 'nullable|string',
             'password'  => 'required|string|min:6|confirmed',
+        ], [
+            'email.unique' => 'Este correo ya está registrado. Inicia sesión o recupera tu contraseña.',
+            'password.confirmed' => 'La confirmación de contraseña no coincide.',
+            'password.min' => 'La contraseña debe tener al menos 6 caracteres.',
         ]);
 
         $cliente = Cliente::create([
@@ -35,10 +50,15 @@ class AuthClienteController extends Controller
             'contrasena'=> Hash::make($data['password']),
         ]);
 
-        $token = $cliente->createToken('token_cliente')->plainTextToken;
+        // Ability "client" para middleware auth:sanctum,abilities:client
+        $token = $cliente->createToken('token_cliente', ['client'])->plainTextToken;
 
-        // === ENVÍO DE CORREO DE BIENVENIDA ===
-        Mail::to($cliente->email)->send(new WelcomeMail($cliente));
+        // Correo de bienvenida: no debe tumbar el registro si falla SMTP
+        try {
+            Mail::to($cliente->email)->send(new WelcomeMail($cliente));
+        } catch (\Throwable $e) {
+            Log::warning('[register] WelcomeMail falló: '.$e->getMessage());
+        }
 
         return response()->json([
             'success' => true,
@@ -60,6 +80,10 @@ class AuthClienteController extends Controller
      */
     public function login(Request $request)
     {
+        if (!$request->filled('password') && $request->filled('contrasena')) {
+            $request->merge(['password' => $request->input('contrasena')]);
+        }
+
         $credentials = $request->validate([
             'email'    => 'required|email',
             'password' => 'required|string',
@@ -95,7 +119,7 @@ class AuthClienteController extends Controller
             $cliente->save();
         }
 
-        $token = $cliente->createToken('token_cliente')->plainTextToken;
+        $token = $cliente->createToken('token_cliente', ['client'])->plainTextToken;
 
         return response()->json([
             'success' => true,
@@ -187,6 +211,29 @@ class AuthClienteController extends Controller
 
         $cliente->contrasena = Hash::make($data['contrasena']);
         $cliente->save();
+
+        return response()->json(['message' => 'Contraseña actualizada'], 200);
+    }
+
+    public function updatePassword(Request $request)
+    {
+        $c = $request->user();
+        if (!$c || !($c instanceof Cliente)) {
+            return response()->json(['message' => 'Token no válido para CLIENTE'], 401);
+        }
+
+        $data = $request->validate([
+            'password_actual' => 'required|string',
+            'password' => 'required|string|min:6|confirmed',
+        ]);
+
+        $stored = $c->getAuthPassword();
+        if (!Hash::check($data['password_actual'], $stored) && $data['password_actual'] !== $stored) {
+            return response()->json(['message' => 'La contraseña actual no es correcta'], 422);
+        }
+
+        $c->contrasena = Hash::make($data['password']);
+        $c->save();
 
         return response()->json(['message' => 'Contraseña actualizada'], 200);
     }
