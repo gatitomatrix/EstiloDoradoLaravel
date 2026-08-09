@@ -53,6 +53,7 @@ Route::get('categorias/{id}/productos', [CategoriaController::class,'productos']
 // ---------------------------------------------------------
 Route::post('auth/register', [AuthClienteController::class, 'register']);
 Route::post('auth/login',    [AuthClienteController::class, 'login']);
+Route::post('auth/google',   [AuthClienteController::class, 'google']);
 Route::post('auth/check-email',            [AuthClienteController::class, 'checkEmail']);
 Route::post('auth/password/reset-simple',  [AuthClienteController::class, 'resetSimple']);
 

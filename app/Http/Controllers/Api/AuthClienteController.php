@@ -237,4 +237,120 @@ class AuthClienteController extends Controller
 
         return response()->json(['message' => 'Contraseña actualizada'], 200);
     }
+
+    /**
+     * Login / registro con Google.
+     * - Producción: envía id_token (GIS / google_sign_in) y se valida con Google.
+     * - Local sin Client ID: { "demo": true, "email", "nombre", "apellido" } si APP_ENV != production.
+     */
+    public function google(Request $request)
+    {
+        $data = $request->validate([
+            'id_token' => 'nullable|string',
+            'demo'     => 'nullable|boolean',
+            'email'    => 'nullable|email',
+            'nombre'   => 'nullable|string|max:100',
+            'apellido' => 'nullable|string|max:100',
+        ]);
+
+        $email = null;
+        $nombre = 'Cliente';
+        $apellido = null;
+
+        if (!empty($data['id_token'])) {
+            $payload = $this->verifyGoogleIdToken($data['id_token']);
+            if (!$payload || empty($payload['email'])) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Token de Google inválido o expirado',
+                ], 401);
+            }
+            $email = $payload['email'];
+            $nombre = $payload['given_name'] ?? ($payload['name'] ?? 'Cliente');
+            $apellido = $payload['family_name'] ?? null;
+        } elseif (!empty($data['demo']) && !app()->environment('production')) {
+            // Solo local / desarrollo
+            $email = $data['email'] ?? 'demo.google@estilodorado.local';
+            $nombre = $data['nombre'] ?? 'Cliente';
+            $apellido = $data['apellido'] ?? 'Google Demo';
+        } else {
+            return response()->json([
+                'success' => false,
+                'message' => 'Envía id_token de Google. En local puedes usar demo=true.',
+            ], 422);
+        }
+
+        $cliente = Cliente::where('email', $email)->first();
+        if (!$cliente) {
+            $cliente = Cliente::create([
+                'nombre'     => $nombre,
+                'apellido'   => $apellido,
+                'email'      => $email,
+                'telefono'   => null,
+                'direccion'  => null,
+                'contrasena' => Hash::make(Str::random(32)),
+            ]);
+        }
+
+        $token = $cliente->createToken('token_cliente', ['client'])->plainTextToken;
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Login con Google exitoso',
+            'cliente' => [
+                'id_cliente' => $cliente->id_cliente,
+                'nombre'     => $cliente->nombre,
+                'apellido'   => $cliente->apellido,
+                'telefono'   => $cliente->telefono,
+                'email'      => $cliente->email,
+                'direccion'  => $cliente->direccion,
+            ],
+            'token' => $token,
+        ]);
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function verifyGoogleIdToken(string $idToken): ?array
+    {
+        $url = 'https://oauth2.googleapis.com/tokeninfo?id_token='.urlencode($idToken);
+        try {
+            $json = @file_get_contents($url);
+            if ($json === false) {
+                // fallback cURL si allow_url_fopen off
+                if (function_exists('curl_init')) {
+                    $ch = curl_init($url);
+                    curl_setopt_array($ch, [
+                        CURLOPT_RETURNTRANSFER => true,
+                        CURLOPT_TIMEOUT => 8,
+                    ]);
+                    $json = curl_exec($ch);
+                    curl_close($ch);
+                }
+            }
+            if (!$json) {
+                return null;
+            }
+            $payload = json_decode($json, true);
+            if (!is_array($payload) || empty($payload['email'])) {
+                return null;
+            }
+            $aud = $payload['aud'] ?? null;
+            $expected = env('GOOGLE_CLIENT_ID');
+            if ($expected && $aud && $aud !== $expected) {
+                Log::warning('[google] aud mismatch', ['aud' => $aud]);
+                // En local permitimos si no hay match estricto solo si GOOGLE_CLIENT_ID vacío
+                if ($expected) {
+                    return null;
+                }
+            }
+
+            return $payload;
+        } catch (\Throwable $e) {
+            Log::warning('[google] verify fail: '.$e->getMessage());
+
+            return null;
+        }
+    }
 }
