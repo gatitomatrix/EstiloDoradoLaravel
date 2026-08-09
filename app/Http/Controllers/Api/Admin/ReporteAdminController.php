@@ -3,98 +3,133 @@
 namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Cliente;
+use App\Models\Inventario;
+use App\Models\Pedido;
+use App\Models\Producto;
+use App\Services\ReportExportService;
 use Illuminate\Http\Request;
-use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ReporteAdminController extends Controller
 {
-   public function productos(string $ext, Request $request)
-{
-    if ($ext === 'csv') {
-        $headers = [
-            'Content-Type' => 'text/csv',
-            'Content-Disposition' => 'attachment; filename="reporte_productos.csv"'
-        ];
-        $callback = function () {
-            $out = fopen('php://output', 'w');
-            fputcsv($out, ['ID', 'Nombre', 'Descripción', 'Precio venta', 'Stock']);
-            foreach (\App\Models\Producto::all() as $p) {
-                fputcsv($out, [$p->id_producto, $p->nombre, $p->descripcion, $p->precio_venta, $p->stock]);
-            }
-            fclose($out);
-        };
-        return new \Symfony\Component\HttpFoundation\StreamedResponse($callback, 200, $headers);
-    }
-    return response()->json(['error' => ['message' => 'Formato no implementado']], 400);
-}
+    public function __construct(private ReportExportService $export) {}
 
     public function clientes(string $ext, Request $request)
-{
-    if ($ext === 'csv') {
-        $headers = ['Content-Type' => 'text/csv', 'Content-Disposition' => 'attachment; filename="reporte_clientes.csv"'];
-        $callback = function () {
-            $out = fopen('php://output', 'w');
-            fputcsv($out, ['ID', 'Nombre', 'Apellido', 'Teléfono', 'Email', 'Dirección', 'Fecha Registro']);
-            foreach (\App\Models\Cliente::all() as $c) {
-                fputcsv($out, [$c->id_cliente, $c->nombre, $c->apellido, $c->telefono, $c->email, $c->direccion, $c->created_at]);
-            }
-            fclose($out);
-        };
-        return new \Symfony\Component\HttpFoundation\StreamedResponse($callback, 200, $headers);
-    }
-    return response()->json(['error' => ['message' => 'Formato no implementado']], 400);
-}
+    {
+        $headers = ['ID', 'Nombre', 'Apellido', 'Teléfono', 'Email', 'Dirección', 'Fecha registro'];
+        $rows = Cliente::query()
+            ->orderBy('id_cliente')
+            ->get()
+            ->map(fn ($c) => [
+                $c->id_cliente,
+                $c->nombre,
+                $c->apellido,
+                $c->telefono,
+                $c->email,
+                $c->direccion,
+                optional($c->created_at)->format('Y-m-d H:i:s') ?? (string) $c->created_at,
+            ])
+            ->all();
 
-   public function pedidos(string $ext, Request $request)
-{
-    if ($ext === 'csv') {
-        $headers = [
-            'Content-Type' => 'text/csv',
-            'Content-Disposition' => 'attachment; filename="reporte_pedidos.csv"'
-        ];
-        $callback = function () {
-            $out = fopen('php://output', 'w');
-            fputcsv($out, ['ID', 'Cliente', 'Estado', 'Total', 'Fecha']);
-            foreach (\App\Models\Pedido::with('cliente')->get() as $p) {
-                fputcsv($out, [
+        return $this->export->download(
+            'reporte_clientes',
+            'Reporte de clientes — Estilo Dorado',
+            $headers,
+            $rows,
+            $ext
+        );
+    }
+
+    public function productos(string $ext, Request $request)
+    {
+        $headers = ['ID', 'Nombre', 'Descripción', 'Precio compra', 'Precio venta', 'Stock', 'Estado'];
+        $rows = Producto::query()
+            ->orderBy('id_producto')
+            ->get()
+            ->map(fn ($p) => [
+                $p->id_producto,
+                $p->nombre,
+                $p->descripcion,
+                $p->precio_compra,
+                $p->precio_venta,
+                $p->stock,
+                $p->estado,
+            ])
+            ->all();
+
+        return $this->export->download(
+            'reporte_productos',
+            'Reporte de productos — Estilo Dorado',
+            $headers,
+            $rows,
+            $ext
+        );
+    }
+
+    public function pedidos(string $ext, Request $request)
+    {
+        $headers = ['ID', 'Cliente', 'Estado', 'Total', 'Forma de pago', 'Fecha', 'Dirección entrega'];
+        $rows = Pedido::query()
+            ->with('cliente')
+            ->orderByDesc('id_pedido')
+            ->get()
+            ->map(function ($p) {
+                $cliente = trim(($p->cliente->nombre ?? '').' '.($p->cliente->apellido ?? ''));
+
+                return [
                     $p->id_pedido,
-                    $p->cliente->nombre . ' ' . $p->cliente->apellido,
+                    $cliente !== '' ? $cliente : ('#'.$p->id_cliente),
                     $p->estado,
                     $p->total,
-                    $p->fecha_pedido
-                ]);
-            }
-            fclose($out);
-        };
-        return new \Symfony\Component\HttpFoundation\StreamedResponse($callback, 200, $headers);
+                    $p->forma_pago,
+                    optional($p->fecha_pedido)->format('Y-m-d H:i:s') ?? (string) $p->fecha_pedido,
+                    $p->direccion_entrega,
+                ];
+            })
+            ->all();
+
+        return $this->export->download(
+            'reporte_pedidos',
+            'Reporte de pedidos — Estilo Dorado',
+            $headers,
+            $rows,
+            $ext
+        );
     }
-    return response()->json(['error' => ['message' => 'Formato no implementado']], 400);
-}
 
     public function inventario(string $ext, Request $request)
-{
-    if ($ext === 'csv') {
-        $headers = [
-            'Content-Type' => 'text/csv',
-            'Content-Disposition' => 'attachment; filename="reporte_inventario.csv"'
-        ];
-        $callback = function () {
-            $out = fopen('php://output', 'w');
-            fputcsv($out, ['ID', 'Producto', 'Tipo movimiento', 'Cantidad', 'Empleado', 'Fecha']);
-            foreach (\App\Models\Inventario::with('producto', 'empleado')->get() as $m) {
-                fputcsv($out, [
+    {
+        $headers = ['ID', 'Producto', 'Tipo movimiento', 'Cantidad', 'Empleado', 'Fecha', 'Observación'];
+        $rows = Inventario::query()
+            ->with(['producto', 'empleado'])
+            ->orderByDesc('id_movimiento')
+            ->get()
+            ->map(function ($m) {
+                $fecha = $m->fecha
+                    ?? $m->fecha_movimiento
+                    ?? null;
+                if ($fecha instanceof \DateTimeInterface) {
+                    $fecha = $fecha->format('Y-m-d H:i:s');
+                }
+
+                return [
                     $m->id_movimiento,
                     $m->producto?->nombre,
                     $m->tipo_movimiento,
                     $m->cantidad,
                     $m->empleado?->nombre,
-                    $m->fecha_movimiento
-                ]);
-            }
-            fclose($out);
-        };
-        return new \Symfony\Component\HttpFoundation\StreamedResponse($callback, 200, $headers);
+                    $fecha,
+                    $m->observacion ?? '',
+                ];
+            })
+            ->all();
+
+        return $this->export->download(
+            'reporte_inventario',
+            'Reporte de inventario — Estilo Dorado',
+            $headers,
+            $rows,
+            $ext
+        );
     }
-    return response()->json(['error' => ['message' => 'Formato no implementado']], 400);
-}
 }
