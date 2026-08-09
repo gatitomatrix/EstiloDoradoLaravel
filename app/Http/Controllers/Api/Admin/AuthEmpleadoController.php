@@ -25,8 +25,8 @@ class AuthEmpleadoController extends Controller
         // Carga roles (si existe pivot)
         $emp->loadMissing('roles:id_rol,nombre');
 
-        // Token Sanctum
-        $token = $emp->createToken('panel-admin')->plainTextToken;
+        // Token Sanctum con ability admin (rutas /api/admin/*)
+        $token = $emp->createToken('panel-admin', ['admin'])->plainTextToken;
 
         // Normaliza roles
         $roles = $emp->roles ? $emp->roles->pluck('nombre')->map(fn($n) => strtoupper($n))->values()->all() : [];
