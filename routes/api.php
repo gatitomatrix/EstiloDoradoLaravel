@@ -31,6 +31,7 @@ use App\Http\Controllers\Api\CheckoutController;
 use App\Http\Controllers\Api\PedidoPagoController;
 use App\Http\Controllers\Api\GeoController;
 
+use App\Http\Controllers\Api\AsistenteController;
 use App\Http\Controllers\Api\Admin\AdminEventsController;
 
 
@@ -40,6 +41,11 @@ use App\Http\Controllers\Api\Admin\AdminEventsController;
 Route::get('geo/search', [GeoController::class, 'search']);
 Route::get('geo/reverse', [GeoController::class, 'reverse']);
 Route::get('ping', fn() => 'pong');
+
+// Asistente IA / chatbot (público; si hay Bearer token de cliente, puede ver sus pedidos)
+Route::post('asistente', [AsistenteController::class, 'chat']);
+// opcional autenticado (mismo handler; Sanctum rellena user si hay token)
+Route::middleware(['auth:sanctum', 'abilities:client'])->post('asistente/auth', [AsistenteController::class, 'chat']);
 
 // ---------------------------------------------------------
 // PÚBLICO (tienda)
