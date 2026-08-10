@@ -159,21 +159,23 @@ TXT;
             return [];
         }
 
-        // Priorizar coincidencia en nombre
+        // Priorizar coincidencia en nombre / etiquetas
         $scored = [];
         $candidates = (clone $base)
             ->where(function ($b) use ($tokens) {
                 foreach ($tokens as $t) {
                     $b->orWhere('nombre', 'like', '%'.$t.'%')
                         ->orWhere('descripcion', 'like', '%'.$t.'%')
-                        ->orWhere('slug', 'like', '%'.$t.'%');
+                        ->orWhere('slug', 'like', '%'.$t.'%')
+                        ->orWhere('etiquetas', 'like', '%'.$t.'%');
                 }
             })
-            ->limit(40)
+            ->limit(50)
             ->get();
 
         foreach ($candidates as $p) {
             $name = mb_strtolower((string) $p->nombre);
+            $tags = mb_strtolower((string) ($p->etiquetas ?? ''));
             $score = 0;
             foreach ($tokens as $t) {
                 if (str_contains($name, $t)) {
@@ -181,6 +183,9 @@ TXT;
                     if (str_starts_with($name, $t)) {
                         $score += 5;
                     }
+                }
+                if ($tags !== '' && str_contains($tags, $t)) {
+                    $score += 12; // etiquetas pesan fuerte (curadas)
                 } elseif (str_contains(mb_strtolower((string) $p->descripcion), $t)) {
                     $score += 2;
                 }

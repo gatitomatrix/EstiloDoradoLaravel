@@ -1,0 +1,102 @@
+-- ============================================================
+-- Estilo Dorado: columna etiquetas + datos para los 90 productos
+-- Ejecutar en phpMyAdmin → base estilo_dorado_bd → pestaña SQL
+-- Seguro: no borra productos ni pedidos
+-- ============================================================
+SET NAMES utf8mb4;
+
+-- 1) Agregar columna (si ya existe, comenta esta línea y ejecuta solo los UPDATE)
+ALTER TABLE `productos` ADD COLUMN `etiquetas` VARCHAR(500) NULL DEFAULT NULL AFTER `descripcion`;
+
+UPDATE `productos` SET `etiquetas` = 'flores,dulces,regalo,arreglo,cumpleaños,detalles,fiesta,globos,personalizado' WHERE `id_producto` = 1;
+UPDATE `productos` SET `etiquetas` = 'peluche,flores,juguete,dulces,regalo,arreglo,detalles,infantil,personalizado' WHERE `id_producto` = 2;
+UPDATE `productos` SET `etiquetas` = 'flores,regalo,arreglo,detalles,pareja,personalizado,romance' WHERE `id_producto` = 3;
+UPDATE `productos` SET `etiquetas` = 'flores,regalo,arreglo,detalles,personalizado' WHERE `id_producto` = 4;
+UPDATE `productos` SET `etiquetas` = 'peluche,flores,juguete,dulces,regalo,arreglo,detalles,infantil,personalizado' WHERE `id_producto` = 5;
+UPDATE `productos` SET `etiquetas` = 'peluche,juguete,dulces,regalo,adulto,cerveza,detalles,infantil,personalizado' WHERE `id_producto` = 6;
+UPDATE `productos` SET `etiquetas` = 'flores,juguete,hotwheels,regalo,arreglo,auto,detalles,personalizado' WHERE `id_producto` = 7;
+UPDATE `productos` SET `etiquetas` = 'flores,regalo,adulto,arreglo,cerveza,detalles,personalizado' WHERE `id_producto` = 8;
+UPDATE `productos` SET `etiquetas` = 'flores,regalo,arreglo,detalles,personalizado' WHERE `id_producto` = 9;
+UPDATE `productos` SET `etiquetas` = 'dulces,regalo,detalles,fiesta,globos,personalizado' WHERE `id_producto` = 10;
+UPDATE `productos` SET `etiquetas` = 'peluche,juguete,regalo,detalles,fiesta,globos,infantil,personalizado' WHERE `id_producto` = 11;
+UPDATE `productos` SET `etiquetas` = 'peluche,juguete,dulces,regalo,detalles,foto,infantil,pareja,personalizado,romance' WHERE `id_producto` = 12;
+UPDATE `productos` SET `etiquetas` = 'peluche,caja,cajita,juguete,dulces,regalo,adulto,cerdita,cerveza,detalle,detalles,fiesta,globos,infantil' WHERE `id_producto` = 13;
+UPDATE `productos` SET `etiquetas` = 'caja,cajita,regalo,alianza,deporte,detalle,detalles,futbol,personalizado' WHERE `id_producto` = 14;
+UPDATE `productos` SET `etiquetas` = 'peluche,caja,cajita,juguete,regalo,detalle,detalles,infantil,personalizado' WHERE `id_producto` = 15;
+UPDATE `productos` SET `etiquetas` = 'peluche,juguete,regalo,detalles,infantil,personalizado' WHERE `id_producto` = 16;
+UPDATE `productos` SET `etiquetas` = 'peluche,flores,bolso,juguete,regalo,accesorio,arreglo,detalles,infantil,moda,personalizado' WHERE `id_producto` = 17;
+UPDATE `productos` SET `etiquetas` = 'regalo,detalles,personalizado' WHERE `id_producto` = 18;
+UPDATE `productos` SET `etiquetas` = 'peluche,caja,cajita,juguete,dulces,hotwheels,regalo,auto,detalle,detalles,infantil,personalizado' WHERE `id_producto` = 19;
+UPDATE `productos` SET `etiquetas` = 'juguete,hotwheels,regalo,auto,detalles,personalizado' WHERE `id_producto` = 20;
+UPDATE `productos` SET `etiquetas` = 'juguete,hotwheels,regalo,auto,detalles,personalizado' WHERE `id_producto` = 21;
+UPDATE `productos` SET `etiquetas` = 'peluche,caja,cajita,juguete,dulces,regalo,adulto,cerdita,cerveza,detalle,detalles,fiesta,globos,infantil' WHERE `id_producto` = 22;
+UPDATE `productos` SET `etiquetas` = 'caja,cajita,dulces,regalo,adulto,cerveza,detalle,detalles,fiesta,globos,personalizado' WHERE `id_producto` = 23;
+UPDATE `productos` SET `etiquetas` = 'dulces,regalo,adulto,alianza,cerveza,deporte,detalles,futbol,personalizado' WHERE `id_producto` = 24;
+UPDATE `productos` SET `etiquetas` = 'caja,cajita,dulces,regalo,detalle,detalles,personalizado' WHERE `id_producto` = 25;
+UPDATE `productos` SET `etiquetas` = 'flores,regalo,arreglo,florales,personalizado' WHERE `id_producto` = 26;
+UPDATE `productos` SET `etiquetas` = 'flores,regalo,arreglo,florales,personalizado' WHERE `id_producto` = 27;
+UPDATE `productos` SET `etiquetas` = 'flores,regalo,arreglo,florales,personalizado' WHERE `id_producto` = 28;
+UPDATE `productos` SET `etiquetas` = 'flores,regalo,arreglo,florales,personalizado' WHERE `id_producto` = 29;
+UPDATE `productos` SET `etiquetas` = 'flores,regalo,arreglo,florales,personalizado' WHERE `id_producto` = 30;
+UPDATE `productos` SET `etiquetas` = 'flores,regalo,arreglo,florales,foto,personalizado' WHERE `id_producto` = 31;
+UPDATE `productos` SET `etiquetas` = 'flores,regalo,arreglo,fiesta,florales,globos,personalizado' WHERE `id_producto` = 32;
+UPDATE `productos` SET `etiquetas` = 'flores,regalo,arreglo,fiesta,florales,globos,personalizado' WHERE `id_producto` = 33;
+UPDATE `productos` SET `etiquetas` = 'peluche,flores,caja,cajita,juguete,dulces,regalo,arreglo,detalle,fiesta,florales,globos,infantil,personalizado' WHERE `id_producto` = 34;
+UPDATE `productos` SET `etiquetas` = 'flores,regalo,arreglo,fiesta,florales,globos,personalizado' WHERE `id_producto` = 35;
+UPDATE `productos` SET `etiquetas` = 'peluche,flores,caja,cajita,juguete,dulces,regalo,arreglo,detalle,fiesta,florales,globos,infantil,personalizado' WHERE `id_producto` = 36;
+UPDATE `productos` SET `etiquetas` = 'flores,regalo,arreglo,florales,personalizado' WHERE `id_producto` = 37;
+UPDATE `productos` SET `etiquetas` = 'flores,regalo,arreglo,florales,personalizado' WHERE `id_producto` = 38;
+UPDATE `productos` SET `etiquetas` = 'flores,regalo,arreglo,florales,personalizado' WHERE `id_producto` = 39;
+UPDATE `productos` SET `etiquetas` = 'flores,regalo,arreglo,florales,personalizado' WHERE `id_producto` = 40;
+UPDATE `productos` SET `etiquetas` = 'flores,regalo,arreglo,florales,personalizado' WHERE `id_producto` = 41;
+UPDATE `productos` SET `etiquetas` = 'flores,regalo,arreglo,florales,personalizado' WHERE `id_producto` = 42;
+UPDATE `productos` SET `etiquetas` = 'flores,regalo,arreglo,florales,personalizado' WHERE `id_producto` = 43;
+UPDATE `productos` SET `etiquetas` = 'cartel,regalo,carteles,cumpleaños,fiesta,mensaje,personalizado' WHERE `id_producto` = 44;
+UPDATE `productos` SET `etiquetas` = 'cartel,caja,cajita,dulces,regalo,carteles,detalle,foto,mensaje,personalizado' WHERE `id_producto` = 45;
+UPDATE `productos` SET `etiquetas` = 'cartel,caja,cajita,regalo,carteles,detalle,mensaje,personalizado' WHERE `id_producto` = 46;
+UPDATE `productos` SET `etiquetas` = 'flores,cartel,caja,cajita,dulces,regalo,arreglo,carteles,detalle,mensaje,personalizado' WHERE `id_producto` = 47;
+UPDATE `productos` SET `etiquetas` = 'flores,cartel,caja,cajita,dulces,regalo,arreglo,carteles,detalle,mensaje,personalizado' WHERE `id_producto` = 48;
+UPDATE `productos` SET `etiquetas` = 'cartel,caja,cajita,juguete,dulces,hotwheels,regalo,auto,carteles,detalle,mensaje,personalizado' WHERE `id_producto` = 49;
+UPDATE `productos` SET `etiquetas` = 'cartel,caja,cajita,juguete,dulces,hotwheels,regalo,auto,carteles,detalle,mensaje,personalizado' WHERE `id_producto` = 50;
+UPDATE `productos` SET `etiquetas` = 'peluche,flores,cartel,caja,cajita,juguete,dulces,regalo,arreglo,carteles,detalle,fiesta,globos,infantil' WHERE `id_producto` = 51;
+UPDATE `productos` SET `etiquetas` = 'peluche,flores,cartel,caja,cajita,juguete,dulces,regalo,arreglo,carteles,detalle,fiesta,globos,infantil' WHERE `id_producto` = 52;
+UPDATE `productos` SET `etiquetas` = 'peluche,cartel,caja,cajita,juguete,dulces,regalo,adulto,carteles,cerveza,detalle,infantil,mensaje,personalizado' WHERE `id_producto` = 53;
+UPDATE `productos` SET `etiquetas` = 'peluche,cartel,caja,cajita,juguete,dulces,regalo,adulto,carteles,cerveza,detalle,infantil,mensaje,personalizado' WHERE `id_producto` = 54;
+UPDATE `productos` SET `etiquetas` = 'peluche,cartel,caja,cajita,juguete,dulces,regalo,carteles,detalle,infantil,mensaje,personalizado' WHERE `id_producto` = 55;
+UPDATE `productos` SET `etiquetas` = 'peluche,flores,cartel,caja,cajita,juguete,dulces,regalo,arreglo,carteles,detalle,infantil,mensaje,personalizado' WHERE `id_producto` = 56;
+UPDATE `productos` SET `etiquetas` = 'cartel,dulces,regalo,carteles,fiesta,globos,mensaje,personalizado' WHERE `id_producto` = 57;
+UPDATE `productos` SET `etiquetas` = 'cartel,caja,cajita,dulces,regalo,carteles,detalle,fiesta,globos,mensaje,personalizado' WHERE `id_producto` = 58;
+UPDATE `productos` SET `etiquetas` = 'cartel,caja,cajita,dulces,regalo,carteles,detalle,fiesta,globos,mensaje,personalizado' WHERE `id_producto` = 59;
+UPDATE `productos` SET `etiquetas` = 'cartel,caja,cajita,dulces,regalo,adulto,carteles,cerveza,detalle,fiesta,globos,mensaje,personalizado' WHERE `id_producto` = 60;
+UPDATE `productos` SET `etiquetas` = 'cartel,dulces,regalo,carteles,fiesta,globos,mensaje,personalizado' WHERE `id_producto` = 61;
+UPDATE `productos` SET `etiquetas` = 'bolso,accesorio,moda,verde' WHERE `id_producto` = 62;
+UPDATE `productos` SET `etiquetas` = 'bolso,accesorio,militar,moda,verde' WHERE `id_producto` = 63;
+UPDATE `productos` SET `etiquetas` = 'peluche,bolso,juguete,regalo,accesorio,cuero,infantil,moda' WHERE `id_producto` = 64;
+UPDATE `productos` SET `etiquetas` = 'bolso,accesorio,bolsa,crema,cuero,moda' WHERE `id_producto` = 65;
+UPDATE `productos` SET `etiquetas` = 'bolso,accesorio,bear,cuero,moda,piton' WHERE `id_producto` = 66;
+UPDATE `productos` SET `etiquetas` = 'peluche,bolso,juguete,regalo,accesorio,cuero,duo,infantil,moda,piton' WHERE `id_producto` = 67;
+UPDATE `productos` SET `etiquetas` = 'peluche,bolso,juguete,regalo,accesorio,infantil,mochila,moda,piton' WHERE `id_producto` = 68;
+UPDATE `productos` SET `etiquetas` = 'bolso,accesorio,mano,moda,piton' WHERE `id_producto` = 69;
+UPDATE `productos` SET `etiquetas` = 'peluche,caja,cajita,juguete,dulces,regalo,accesorio,detalle,infantil,personalizado' WHERE `id_producto` = 70;
+UPDATE `productos` SET `etiquetas` = 'perfume,accesorio,dance,fragancia,perfumeria' WHERE `id_producto` = 71;
+UPDATE `productos` SET `etiquetas` = 'peluche,caja,cajita,juguete,dulces,regalo,accesorio,circular,detalle,infantil,personalizado' WHERE `id_producto` = 72;
+UPDATE `productos` SET `etiquetas` = 'peluche,flores,juguete,regalo,accesorio,arreglo,cerdita,cerdito,infantil,tiburon' WHERE `id_producto` = 73;
+UPDATE `productos` SET `etiquetas` = 'peluche,caja,cajita,juguete,regalo,accesorio,detalle,fiesta,globos,infantil' WHERE `id_producto` = 74;
+UPDATE `productos` SET `etiquetas` = 'caja,cajita,juguete,hotwheels,regalo,accesorio,auto,detalle,negra,sorpresa' WHERE `id_producto` = 75;
+UPDATE `productos` SET `etiquetas` = 'peluche,caja,cajita,juguete,regalo,circular,detalle,infantil,rosa,variados' WHERE `id_producto` = 76;
+UPDATE `productos` SET `etiquetas` = 'peluche,juguete,regalo,infantil,stich,variados' WHERE `id_producto` = 77;
+UPDATE `productos` SET `etiquetas` = 'peluche,juguete,regalo,infantil,rosa,stich,variados' WHERE `id_producto` = 78;
+UPDATE `productos` SET `etiquetas` = 'peluche,caja,cajita,juguete,dulces,regalo,detalle,fiesta,globos,infantil,personalizado,pinguino,variados' WHERE `id_producto` = 79;
+UPDATE `productos` SET `etiquetas` = 'reloj,regalo,accesorio,clasicos,relojes,variados' WHERE `id_producto` = 80;
+UPDATE `productos` SET `etiquetas` = 'pulsera,regalo,accesorio,metalizadas,pulseras,variados' WHERE `id_producto` = 81;
+UPDATE `productos` SET `etiquetas` = 'pulsera,regalo,accesorio,negras,pulseras,variados' WHERE `id_producto` = 82;
+UPDATE `productos` SET `etiquetas` = 'billetera,regalo,accesorio,caballero,chicago,marca,variados' WHERE `id_producto` = 83;
+UPDATE `productos` SET `etiquetas` = 'billetera,regalo,accesorio,caballero,costa,marca,renzo,variados' WHERE `id_producto` = 84;
+UPDATE `productos` SET `etiquetas` = 'billetera,regalo,accesorio,caballero,chicago,dorado,marca,variados' WHERE `id_producto` = 85;
+UPDATE `productos` SET `etiquetas` = 'billetera,regalo,accesorio,caballero,chicago,clasica,marca,variados' WHERE `id_producto` = 86;
+UPDATE `productos` SET `etiquetas` = 'billetera,regalo,accesorio,caballero,cuero,marca,puma,variados' WHERE `id_producto` = 87;
+UPDATE `productos` SET `etiquetas` = 'peluche,flores,juguete,regalo,arreglo,cerdita,infantil,tiburon,variados' WHERE `id_producto` = 88;
+UPDATE `productos` SET `etiquetas` = 'caja,cajita,dulces,regalo,detalle,dulcera,fiesta,globos,personalizado,variados' WHERE `id_producto` = 89;
+UPDATE `productos` SET `etiquetas` = 'caja,cajita,juguete,dulces,hotwheels,regalo,auto,detalle,hot,variados,wheels' WHERE `id_producto` = 90;
+
+SELECT id_producto, nombre, etiquetas FROM productos ORDER BY id_producto;

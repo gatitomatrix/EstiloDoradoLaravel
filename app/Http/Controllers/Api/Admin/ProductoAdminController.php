@@ -24,9 +24,10 @@ class ProductoAdminController extends Controller
         // Acepta q|search
         $term = trim((string)($request->input('q') ?? $request->input('search') ?? ''));
         if ($term !== '') {
-            $q->where(function($w) use ($term){
-                $w->where('nombre','like',"%$term%")
-                  ->orWhere('descripcion','like',"%$term%");
+            $q->where(function ($w) use ($term) {
+                $w->where('nombre', 'like', "%$term%")
+                    ->orWhere('descripcion', 'like', "%$term%")
+                    ->orWhere('etiquetas', 'like', "%$term%");
             });
         }
 
@@ -64,6 +65,7 @@ class ProductoAdminController extends Controller
         $data = $request->validate([
             'nombre'        => ['required','string','max:255'],
             'descripcion'   => ['nullable','string'],
+            'etiquetas'     => ['nullable','string','max:500'],
             'precio_compra' => ['required','numeric','min:0'],
             'precio_venta'  => ['required','numeric','min:0'],
             'stock'         => ['required','integer','min:0'],
@@ -87,6 +89,7 @@ class ProductoAdminController extends Controller
 
         $p->nombre         = $data['nombre'];
         $p->descripcion    = $data['descripcion'] ?? null;
+        $p->etiquetas      = $data['etiquetas'] ?? null;
         $p->precio_compra  = $data['precio_compra'];
         $p->precio_venta   = $data['precio_venta'];
         $p->stock          = $data['stock'];
@@ -113,6 +116,7 @@ class ProductoAdminController extends Controller
         $data = $request->validate([
             'nombre'        => ['required','string','max:255'],
             'descripcion'   => ['nullable','string'],
+            'etiquetas'     => ['nullable','string','max:500'],
             'precio_compra' => ['required','numeric','min:0'],
             'precio_venta'  => ['required','numeric','min:0'],
             'stock'         => ['required','integer','min:0'],
@@ -133,6 +137,7 @@ class ProductoAdminController extends Controller
 
         $p->nombre         = $data['nombre'];
         $p->descripcion    = $data['descripcion'] ?? null;
+        $p->etiquetas      = $data['etiquetas'] ?? null;
         $p->precio_compra  = $data['precio_compra'];
         $p->precio_venta   = $data['precio_venta'];
         $p->stock          = $data['stock'];
