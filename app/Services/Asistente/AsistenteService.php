@@ -88,7 +88,8 @@ REGLAS ESTRICTAS:
 7) Compra: producto → carrito → entrega (recojo en tienda o envío express) → pago (tarjeta Culqi en prueba, Yape o efectivo).
 8) Pedidos: solo con datos del contexto; si no hay, pide iniciar sesión y el número de pedido.
 9) Si preguntan por comida u otro rubro ajeno, indícalo con amabilidad y ofrece regalos/detalles del catálogo.
-10) No des información de otros clientes.
+10) Si buscan "peluches" u otra categoría y hay productos encontrados (aunque el nombre no diga peluche), ofrécelos como opciones cercanas del catálogo. Solo di "no hay" si Productos encontrados está vacío.
+11) No des información de otros clientes.
 TXT;
     }
 
@@ -233,13 +234,35 @@ TXT;
             $tokens[] = $t;
         }
 
-        // variantes útiles
+        // variantes / sinónimos de búsqueda (catálogo de regalos)
         $extra = [];
         foreach ($tokens as $t) {
             if (str_starts_with($t, 'cerdit')) {
                 $extra[] = 'cerdita';
                 $extra[] = 'tiburon';
                 $extra[] = 'tiburón';
+            }
+            // "peluches", "peluche", "muñeco", etc. → productos blandos / personajes del catálogo
+            if (str_contains($t, 'peluch') || str_contains($t, 'muñec') || str_contains($t, 'munec') || str_contains($t, 'juguet')) {
+                $extra[] = 'cerdita';
+                $extra[] = 'tiburon';
+                $extra[] = 'tiburón';
+                $extra[] = 'pinguino';
+                $extra[] = 'pingüino';
+                $extra[] = 'oso';
+                $extra[] = 'muñeca';
+            }
+            if (str_contains($t, 'regalo') || str_contains($t, 'detalle')) {
+                $extra[] = 'personalizado';
+                $extra[] = 'cajita';
+                $extra[] = 'flores';
+            }
+            if (str_contains($t, 'flor')) {
+                $extra[] = 'flores';
+            }
+            if (str_contains($t, 'caja') || str_contains($t, 'cajit')) {
+                $extra[] = 'cajita';
+                $extra[] = 'caja';
             }
         }
 
@@ -359,6 +382,11 @@ TXT;
 
         if ($intent === 'offtopic') {
             return 'No vendemos comida: Estilo Dorado es una tienda de regalos y detalles personalizados. ¿Te muestro algo del catálogo (flores, cajitas, detalles, etc.)?';
+        }
+
+        // Búsqueda sin resultados
+        if (in_array($intent, ['product', 'mixed'], true) && $products === []) {
+            return 'No encontré un producto con ese nombre en el catálogo. Prueba con otra palabra (ej. «cerdita», «cajita», «flores») o revisa Inicio. Si buscabas peluches o juguetes, a veces aparecen con otro nombre en el catálogo.';
         }
 
         if ($intent === 'catalog_count') {
