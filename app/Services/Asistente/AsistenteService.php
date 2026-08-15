@@ -15,12 +15,19 @@ class AsistenteService
     ) {}
 
     /**
-     * @return array{reply:string,driver:string,products:array<int,array<string,mixed>>,pedido:?array<string,mixed>,suggestions:array<int,string>}
+     * @param  list<int>  $offeredIds  IDs de productos que el chat ya mostró (para "quiero la cerdita")
+     * @return array{reply:string,driver:string,products:array<int,array<string,mixed>>,pedido:?array<string,mixed>,suggestions:array<int,string>,action:?array<string,mixed>}
      */
-    public function handle(string $message, ?Cliente $cliente = null): array
+    public function handle(string $message, ?Cliente $cliente = null, array $offeredIds = []): array
     {
         $message = trim($message);
-        $intent = $this->detectIntent($message);
+        $intent = $this->detectIntent($message, $offeredIds !== []);
+
+        // Intención de agregar: solo entre lo ya ofrecido (nunca a ciegas)
+        if ($intent === 'add_to_cart') {
+            return $this->handleAddToCart($message, $offeredIds);
+        }
+
         $products = $this->findProducts($message, $intent);
         $pedido = $this->findPedido($message, $cliente);
         $catalogCount = (int) Producto::query()
@@ -69,6 +76,7 @@ class AsistenteService
                 : [],
             'pedido' => $pedido,
             'suggestions' => $this->suggestions($cliente !== null),
+            'action' => null,
         ];
     }
 
@@ -89,18 +97,28 @@ REGLAS ESTRICTAS:
 8) Pedidos: solo con datos del contexto; si no hay, pide iniciar sesión y el número de pedido.
 9) Si preguntan por comida u otro rubro ajeno, indícalo con amabilidad y ofrece regalos/detalles del catálogo.
 10) Si buscan "peluches" u otra categoría y hay productos encontrados (aunque el nombre no diga peluche), ofrécelos como opciones cercanas del catálogo. Solo di "no hay" si Productos encontrados está vacío.
-11) No des información de otros clientes.
+11) NUNCA digas que ya agregaste algo al carrito. Solo puedes invitar a usar el botón "Agregar" o a confirmar.
+12) No des información de otros clientes.
 TXT;
     }
 
-    private function detectIntent(string $message): string
+    private function detectIntent(string $message, bool $hasOffered = false): string
     {
         $m = mb_strtolower($message);
+
+        $addCue = (bool) preg_match('/agrega|a[nñ]ade|al\s+carrito|me\s+llevo|ponme|ponlo|quiero\s+(esa|ese|esta|este|la|el|una|uno|\d)|la\s+primera|la\s+segunda|la\s+\d/u', $m);
+        if ($hasOffered && $addCue) {
+            return 'add_to_cart';
+        }
+        if ($hasOffered && preg_match('/^(quiero|dame|me\s+das)\b/u', $m)) {
+            return 'add_to_cart';
+        }
 
         if (preg_match('/registr|cuenta|usuario|crear\s*cuenta|sign\s*up|login|iniciar\s*sesi/u', $m)) {
             return 'account';
         }
-        if (preg_match('/c[oó]mo\s+compr|pasos|carrito|delivery|recojo|env[ií]o/u', $m)) {
+        if (preg_match('/c[oó]mo\s+compr|pasos|carrito|delivery|recojo|env[ií]o/u', $m)
+            && ! preg_match('/agrega|a[nñ]ade/u', $m)) {
             return 'howto';
         }
         if (preg_match('/yape|tarjeta|culqi|efectivo|forma[s]?\s+de\s+pago|m[eé]todo[s]?\s+de\s+pago|pagar/u', $m)
@@ -133,6 +151,154 @@ TXT;
         }
 
         return 'product';
+    }
+
+    /**
+     * Solo agrega (pide confirmación) si el producto está en offered_ids.
+     *
+     * @param  list<int>  $offeredIds
+     * @return array{reply:string,driver:string,products:array<int,array<string,mixed>>,pedido:?array<string,mixed>,suggestions:array<int,string>,action:?array<string,mixed>}
+     */
+    private function handleAddToCart(string $message, array $offeredIds): array
+    {
+        $empty = [
+            'driver' => 'rules',
+            'pedido' => null,
+            'suggestions' => ['¿Qué productos tienen?', 'Cerdita tiburón', '¿Cómo compro?'],
+        ];
+
+        if ($offeredIds === []) {
+            return $empty + [
+                'reply' => 'Primero te muestro opciones del catálogo. Pregunta por un producto (ej. «cerdita» o «peluches») y luego dime «quiero esa» o usa el botón Agregar.',
+                'products' => [],
+                'action' => null,
+            ];
+        }
+
+        $offered = Producto::query()
+            ->whereIn('id_producto', $offeredIds)
+            ->where(function ($b) {
+                $b->whereNull('estado')->orWhere('estado', 'activo');
+            })
+            ->get();
+
+        if ($offered->isEmpty()) {
+            return $empty + [
+                'reply' => 'Las opciones anteriores ya no están disponibles. Busca de nuevo el producto y te las vuelvo a mostrar.',
+                'products' => [],
+                'action' => null,
+            ];
+        }
+
+        $qty = 1;
+        if (preg_match('/\b(\d{1,2})\s*(unidad|unidades|x)?\b/u', mb_strtolower($message), $qm)) {
+            $qty = max(1, min(20, (int) $qm[1]));
+        }
+
+        $picked = $this->matchOffered($message, $offered);
+
+        if (count($picked) === 1) {
+            $p = $picked[0];
+            $stock = (int) $p->stock;
+            $card = $this->productCard($p);
+            if ($stock < 1) {
+                return $empty + [
+                    'reply' => $p->nombre.' está agotado por ahora. Elige otro de la lista o busca de nuevo.',
+                    'products' => [$card],
+                    'action' => null,
+                ];
+            }
+            $qty = min($qty, $stock);
+
+            return $empty + [
+                'reply' => sprintf(
+                    '¿Agrego %s × %d (S/ %s c/u) al carrito? Confirma y uso el mismo carrito de la app, con el stock real.',
+                    $p->nombre,
+                    $qty,
+                    number_format((float) $p->precio_venta, 2, '.', '')
+                ),
+                'products' => [$card],
+                'action' => [
+                    'type' => 'confirm_add',
+                    'id' => $p->id_producto,
+                    'qty' => $qty,
+                    'nombre' => $p->nombre,
+                    'precio' => (float) $p->precio_venta,
+                    'stock' => $stock,
+                    'imagen_url' => $p->imagen_url,
+                ],
+            ];
+        }
+
+        if (count($picked) > 1) {
+            $cards = array_map(fn (Producto $p) => $this->productCard($p), $picked);
+
+            return $empty + [
+                'reply' => 'Hay más de una opción parecida. Elige con el botón Agregar o dime el nombre exacto.',
+                'products' => $cards,
+                'action' => ['type' => 'clarify'],
+            ];
+        }
+
+        $cards = $offered->map(fn (Producto $p) => $this->productCard($p))->all();
+
+        return $empty + [
+            'reply' => 'Ese nombre no está en las opciones que te acabo de mostrar. Toca Agregar en una tarjeta o dime el nombre tal como aparece en la lista.',
+            'products' => $cards,
+            'action' => null,
+        ];
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<int, Producto>  $offered
+     * @return list<Producto>
+     */
+    private function matchOffered(string $message, $offered): array
+    {
+        $m = mb_strtolower($message);
+
+        // "la primera", "la 1", "la segunda"
+        $ordinals = [
+            1 => '/\b(primera|primer|1)\b/u',
+            2 => '/\b(segunda|segundo|2)\b/u',
+            3 => '/\b(tercera|tercero|3)\b/u',
+        ];
+        if (preg_match('/\b(la|el)\s+(primera|primer|segunda|segundo|tercera|tercero|\d)\b/u', $m)) {
+            $list = $offered->values();
+            foreach ($ordinals as $i => $pat) {
+                if (preg_match($pat, $m) && isset($list[$i - 1])) {
+                    return [$list[$i - 1]];
+                }
+            }
+        }
+
+        if (preg_match('/\b(esa|ese|esta|este|la\s+misma)\b/u', $m) && $offered->count() === 1) {
+            return [$offered->first()];
+        }
+
+        $tokens = $this->extractSearchTokens($message);
+        if ($tokens === []) {
+            if ($offered->count() === 1 && preg_match('/quiero|agrega|a[nñ]ade|dame|llevo/u', $m)) {
+                return [$offered->first()];
+            }
+
+            return [];
+        }
+
+        $hits = [];
+        foreach ($offered as $p) {
+            $blob = mb_strtolower(
+                $p->nombre.' '.($p->descripcion ?? '').' '.($p->etiquetas ?? '')
+            );
+            foreach ($tokens as $t) {
+                if (str_contains($blob, $t)) {
+                    $hits[] = $p;
+                    break;
+                }
+            }
+        }
+
+        return $hits;
     }
 
     /**
@@ -499,9 +665,9 @@ TXT;
         $base = [
             '¿Qué productos tienen?',
             'Cerdita tiburón',
+            'Quiero la cerdita',
             '¿Cómo compro?',
             'Formas de pago',
-            '¿Cuántos productos hay?',
         ];
         if ($loggedIn) {
             $base[] = 'Estado de mi pedido';

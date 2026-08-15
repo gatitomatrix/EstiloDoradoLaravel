@@ -15,12 +15,15 @@ class AsistenteController extends Controller
     {
         $data = $request->validate([
             'message' => 'required|string|min:1|max:1000',
+            'offered_ids' => 'sometimes|array|max:12',
+            'offered_ids.*' => 'integer|min:1',
         ]);
 
         $cliente = $this->resolveCliente($request);
 
         try {
-            $result = $asistente->handle($data['message'], $cliente);
+            $offered = array_values(array_map('intval', $data['offered_ids'] ?? []));
+            $result = $asistente->handle($data['message'], $cliente, $offered);
 
             return response()->json([
                 'success' => true,
@@ -29,6 +32,7 @@ class AsistenteController extends Controller
                 'products' => $result['products'],
                 'pedido' => $result['pedido'],
                 'suggestions' => $result['suggestions'],
+                'action' => $result['action'],
             ]);
         } catch (\Throwable $e) {
             Log::error('[asistente] '.$e->getMessage());
@@ -40,6 +44,7 @@ class AsistenteController extends Controller
                 'products' => [],
                 'pedido' => null,
                 'suggestions' => ['¿Cómo compro?', '¿Qué productos tienen?'],
+                'action' => null,
             ], 500);
         }
     }
