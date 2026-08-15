@@ -71,6 +71,53 @@ class PedidoAdminController extends Controller
         ]);
     }
 
+    /**
+     * GET /api/admin/pedidos/novedades?after_id=
+     * Contrato estable para polling (local) o Pusher/SSE (prod).
+     */
+    public function novedades(Request $request)
+    {
+        $after = max(0, (int) $request->input('after_id', 0));
+
+        $maxId = (int) (Pedido::query()->max('id_pedido') ?? 0);
+        $pendientes = (int) Pedido::query()->where('estado', 'pendiente')->count();
+
+        $nuevos = [];
+        if ($after > 0) {
+            $nuevos = Pedido::query()
+                ->leftJoin('clientes as c', 'c.id_cliente', '=', 'pedidos.id_cliente')
+                ->select([
+                    'pedidos.id_pedido',
+                    'pedidos.estado',
+                    'pedidos.total',
+                    'pedidos.forma_pago',
+                    'pedidos.fecha_pedido',
+                    DB::raw("TRIM(CONCAT(COALESCE(c.nombre,''),' ',COALESCE(c.apellido,''))) as cliente_nombre"),
+                ])
+                ->where('pedidos.id_pedido', '>', $after)
+                ->orderBy('pedidos.id_pedido')
+                ->limit(25)
+                ->get()
+                ->map(fn ($p) => [
+                    'id_pedido' => (int) $p->id_pedido,
+                    'estado' => $p->estado,
+                    'total' => (float) $p->total,
+                    'forma_pago' => $p->forma_pago,
+                    'fecha_pedido' => $p->fecha_pedido,
+                    'cliente_nombre' => $p->cliente_nombre,
+                    'event' => 'pedido.created',
+                ])
+                ->all();
+        }
+
+        return response()->json([
+            'max_id' => $maxId,
+            'pendientes' => $pendientes,
+            'nuevos' => $nuevos,
+            'driver_hint' => 'poll',
+        ]);
+    }
+
     public function show($id)
     {
         $p = Pedido::with(['cliente','detalles.producto','historial'])->find($id);

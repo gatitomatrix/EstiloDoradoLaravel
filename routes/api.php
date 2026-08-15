@@ -149,6 +149,7 @@ Route::prefix('admin')->middleware(['auth:sanctum','abilities:admin'])->group(fu
 
     // PEDIDOS + ESTADOS + COMPROBANTES
     Route::middleware(['role:ADMIN,SOPORTE,VENTAS,STOCK'])->group(function () {
+        Route::get('pedidos/novedades',                      [PedidoAdminController::class, 'novedades']);
         Route::get('pedidos',                                [PedidoAdminController::class, 'index']);
         Route::get('pedidos/{id}',                           [PedidoAdminController::class, 'show']);
         Route::get('pedidos/{id}/estado-historial',          [PedidoEstadoController::class, 'historial']);
