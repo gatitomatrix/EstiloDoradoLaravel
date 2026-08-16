@@ -1,56 +1,27 @@
-# Imagen base PHP con FPM (FastCGI Process Manager)
 FROM php:8.2-fpm
 
-# Instalación de extensiones del sistema requeridas y Nginx
 RUN apt-get update && apt-get install -y \
-    libzip-dev \
-    unzip \
-    git \
-    curl \
-    libpng-dev \
-    libonig-dev \
-    libjpeg-dev \
-    libfreetype6-dev \
-    libxml2-dev \
-    nginx \
+    libzip-dev unzip git curl \
+    libpng-dev libonig-dev libjpeg-dev libfreetype6-dev libxml2-dev \
+    nginx default-mysql-client \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
-    && docker-php-ext-install \
-        pdo \
-        pdo_mysql \
-        mbstring \
-        exif \
-        pcntl \
-        bcmath \
-        gd \
-        zip \
-        soap
+    && docker-php-ext-install pdo pdo_mysql mbstring exif pcntl bcmath gd zip soap \
+    && rm -rf /var/lib/apt/lists/*
 
-# Instala Composer
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
-# Directorio de trabajo
 WORKDIR /var/www
 
-# Copiar archivos de dependencias para cache layer
 COPY composer.json composer.lock ./
-
-# Copiar resto del código
 COPY . .
+RUN composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist \
+    && chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache \
+    && chmod -R 775 /var/www/storage /var/www/bootstrap/cache \
+    && chmod +x /var/www/scripts/render-start.sh \
+    && php artisan storage:link || true
 
-# Instalar dependencias sin dev y optimizar autoloaders
-RUN composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
-
-RUN chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache \
-    && chmod -R 775 /var/www/storage /var/www/bootstrap/cache
-
-# Crear enlace simbólico entre storage/app/public y public/storage
-RUN php artisan storage:link || true
-
-# Copiar configuración Nginx para Laravel
 COPY nginx.conf /etc/nginx/sites-available/default
 
-# Exponer puertos Nginx y php-fpm
-EXPOSE 80 9000
+EXPOSE 10000
 
-# Ejecutar PHP-FPM y Nginx en primer plano (con supervisord o en background)
-CMD service nginx start && php-fpm
+CMD ["/var/www/scripts/render-start.sh"]

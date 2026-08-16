@@ -21,6 +21,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // Si quieres agregar CORS explícitamente (opcional):
         // Usa append/prepend, no use().
         $middleware->append(\Illuminate\Http\Middleware\HandleCors::class);
+        $middleware->trustProxies(at: '*');
 
         // Alias para tu middleware de roles (evita “Target class [role] does not exist”)
         $middleware->alias([

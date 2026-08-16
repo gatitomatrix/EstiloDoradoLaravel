@@ -1,0 +1,12 @@
+.git
+.gitignore
+.env
+.env.*
+!.env.example
+node_modules
+tests
+phpunit.xml
+storage/logs/*
+storage/framework/cache/data/*
+*.md
+!RENDER_PASOS.md

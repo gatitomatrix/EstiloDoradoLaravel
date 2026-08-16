@@ -5,7 +5,10 @@ return [
 
     'allowed_methods' => ['*'],
 
-    'allowed_origins' => ['*'],   // ← Temporal pero efectivo para desarrollo
+    'allowed_origins' => array_values(array_filter(array_map('trim', explode(',', (string) env(
+        'FRONTEND_URLS',
+        '*'
+    ))))),
 
     'allowed_origins_patterns' => [],
 
