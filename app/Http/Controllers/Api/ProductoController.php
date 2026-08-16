@@ -13,16 +13,39 @@ class ProductoController extends Controller
     // GET /api/productos?q=&categoria=&proveedor=&estado=
     public function index(\Illuminate\Http\Request $r)
     {
-    $q = \App\Models\Producto::query();
+        $q = Producto::query();
 
-    if ($r->filled('q')) {
-        $q->where('nombre', 'like', '%'.$r->q.'%');
-    }
-    if ($r->filled('categoria')) {
-        $q->where('id_categoria', $r->categoria);
-    }
+        // Catálogo público: solo activos, salvo que pidan otro estado
+        if ($r->filled('estado')) {
+            $q->where('estado', $r->estado);
+        } else {
+            $q->where(function ($w) {
+                $w->whereNull('estado')->orWhere('estado', 'activo');
+            });
+        }
 
-    return $q->orderByDesc('id_producto')->get();
+        if ($r->filled('q')) {
+            $term = trim((string) $r->q);
+            $tokens = preg_split('/\s+/u', mb_strtolower($term)) ?: [];
+            $tokens = array_values(array_filter($tokens, fn ($t) => mb_strlen($t) >= 2));
+            if ($tokens === []) {
+                $tokens = [mb_strtolower($term)];
+            }
+            $q->where(function ($w) use ($tokens) {
+                foreach ($tokens as $t) {
+                    $like = '%'.$t.'%';
+                    $w->orWhere('nombre', 'like', $like)
+                        ->orWhere('descripcion', 'like', $like)
+                        ->orWhere('slug', 'like', $like)
+                        ->orWhere('etiquetas', 'like', $like);
+                }
+            });
+        }
+        if ($r->filled('categoria')) {
+            $q->where('id_categoria', $r->categoria);
+        }
+
+        return $q->orderByDesc('id_producto')->get();
     }
 
     // GET /api/productos/{id}
