@@ -14,16 +14,11 @@ class AsistenteService
         private GeminiClient $gemini,
     ) {}
 
-    /**
-     * @param  list<int>  $offeredIds  IDs de productos que el chat ya mostró (para "quiero la cerdita")
-     * @return array{reply:string,driver:string,products:array<int,array<string,mixed>>,pedido:?array<string,mixed>,suggestions:array<int,string>,action:?array<string,mixed>}
-     */
     public function handle(string $message, ?Cliente $cliente = null, array $offeredIds = []): array
     {
         $message = trim($message);
         $intent = $this->detectIntent($message, $offeredIds !== []);
 
-        // Intención de agregar: solo entre lo ya ofrecido (nunca a ciegas)
         if ($intent === 'add_to_cart') {
             return $this->handleAddToCart($message, $offeredIds);
         }
@@ -65,7 +60,6 @@ class AsistenteService
             $used = 'rules';
         }
 
-        // Tarjetas solo si la pregunta es de catálogo y hay match útil
         $showProducts = in_array($intent, ['product', 'catalog', 'mixed'], true) && $products !== [];
 
         return [
@@ -145,7 +139,6 @@ TXT;
         if (preg_match('/busco|precio|cuesta|stock|tienen|hay\s|quiero|cerdit|cajit|flores|billetera|hot\s*wheels|personaliz/u', $m)) {
             return 'product';
         }
-        // mensaje largo con varias intenciones
         if (preg_match('/busco|cerdit|product/u', $m) && preg_match('/compr|pago|yape/u', $m)) {
             return 'mixed';
         }
@@ -153,12 +146,6 @@ TXT;
         return 'product';
     }
 
-    /**
-     * Solo agrega (pide confirmación) si el producto está en offered_ids.
-     *
-     * @param  list<int>  $offeredIds
-     * @return array{reply:string,driver:string,products:array<int,array<string,mixed>>,pedido:?array<string,mixed>,suggestions:array<int,string>,action:?array<string,mixed>}
-     */
     private function handleAddToCart(string $message, array $offeredIds): array
     {
         $empty = [
@@ -249,15 +236,10 @@ TXT;
         ];
     }
 
-    /**
-     * @param  \Illuminate\Support\Collection<int, Producto>  $offered
-     * @return list<Producto>
-     */
     private function matchOffered(string $message, $offered): array
     {
         $m = mb_strtolower($message);
 
-        // "la primera", "la 1", "la segunda"
         $ordinals = [
             1 => '/\b(primera|primer|1)\b/u',
             2 => '/\b(segunda|segundo|2)\b/u',
@@ -285,28 +267,53 @@ TXT;
             return [];
         }
 
-        $hits = [];
+        $scored = [];
         foreach ($offered as $p) {
-            $blob = mb_strtolower(
-                $p->nombre.' '.($p->descripcion ?? '').' '.($p->etiquetas ?? '')
-            );
+            $name = mb_strtolower((string) $p->nombre);
+            $tags = mb_strtolower((string) ($p->etiquetas ?? ''));
+            $desc = mb_strtolower((string) ($p->descripcion ?? ''));
+            $score = 0;
+            $nameHits = 0;
             foreach ($tokens as $t) {
-                if (str_contains($blob, $t)) {
-                    $hits[] = $p;
-                    break;
+                if (str_contains($name, $t)) {
+                    $score += 10;
+                    $nameHits++;
+                    if (str_contains($name, implode(' ', $tokens))) {
+                        $score += 8;
+                    }
+                } elseif ($tags !== '' && str_contains($tags, $t)) {
+                    $score += 3;
+                } elseif (str_contains($desc, $t)) {
+                    $score += 1;
                 }
+            }
+            if ($nameHits === count($tokens)) {
+                $score += 15;
+            }
+            if ($score > 0) {
+                $scored[] = ['p' => $p, 's' => $score];
             }
         }
 
-        return $hits;
+        if ($scored === []) {
+            return [];
+        }
+
+        usort($scored, fn ($a, $b) => $b['s'] <=> $a['s']);
+        $best = $scored[0]['s'];
+        $second = $scored[1]['s'] ?? 0;
+
+        if ($best >= $second + 8) {
+            return [$scored[0]['p']];
+        }
+
+        $tied = array_values(array_filter($scored, fn ($x) => $x['s'] === $best));
+
+        return array_map(fn ($x) => $x['p'], $tied);
     }
 
-    /**
-     * @return list<Producto>
-     */
     private function findProducts(string $message, string $intent): array
     {
-        // Intents que no deben listar productos al azar
         if (in_array($intent, ['help', 'howto', 'payment', 'account', 'order', 'offtopic', 'catalog_count'], true)) {
             return [];
         }
@@ -321,11 +328,9 @@ TXT;
 
         $tokens = $this->extractSearchTokens($message);
         if ($tokens === []) {
-            // sin palabras de producto: no inventar listado
             return [];
         }
 
-        // Priorizar coincidencia en nombre / etiquetas
         $scored = [];
         $candidates = (clone $base)
             ->where(function ($b) use ($tokens) {
@@ -351,7 +356,7 @@ TXT;
                     }
                 }
                 if ($tags !== '' && str_contains($tags, $t)) {
-                    $score += 12; // etiquetas pesan fuerte (curadas)
+                    $score += 12;
                 } elseif (str_contains(mb_strtolower((string) $p->descripcion), $t)) {
                     $score += 2;
                 }
@@ -363,12 +368,13 @@ TXT;
 
         usort($scored, fn ($a, $b) => $b['s'] <=> $a['s']);
 
+        if (count($scored) >= 2 && $scored[0]['s'] >= $scored[1]['s'] + 8) {
+            return [$scored[0]['p']];
+        }
+
         return array_map(fn ($x) => $x['p'], array_slice($scored, 0, 6));
     }
 
-    /**
-     * @return list<string>
-     */
     private function extractSearchTokens(string $message): array
     {
         $q = mb_strtolower($message);
@@ -405,7 +411,6 @@ TXT;
             $tokens[] = $t;
         }
 
-        // variantes / sinónimos de búsqueda (catálogo de regalos)
         $extra = [];
         foreach ($tokens as $t) {
             if (str_starts_with($t, 'cerdit')) {
@@ -413,7 +418,6 @@ TXT;
                 $extra[] = 'tiburon';
                 $extra[] = 'tiburón';
             }
-            // "peluches", "peluche", "muñeco", etc. → productos blandos / personajes del catálogo
             if (str_contains($t, 'peluch') || str_contains($t, 'muñec') || str_contains($t, 'munec') || str_contains($t, 'juguet')) {
                 $extra[] = 'cerdita';
                 $extra[] = 'tiburon';
@@ -440,9 +444,6 @@ TXT;
         return array_values(array_unique(array_merge($tokens, $extra)));
     }
 
-    /**
-     * @return array<string,mixed>|null
-     */
     private function findPedido(string $message, ?Cliente $cliente): ?array
     {
         if (! preg_match('/\b(?:pedido\s*#?\s*|n[uú]mero\s*|orden\s*#?\s*)(\d{1,8})\b/iu', $message, $m)
@@ -480,10 +481,6 @@ TXT;
         return $this->pedidoCard($p);
     }
 
-    /**
-     * @param  list<Producto>  $products
-     * @param  array<string,mixed>|null  $pedido
-     */
     private function buildContext(
         array $products,
         ?array $pedido,
@@ -523,10 +520,6 @@ TXT;
         return implode("\n", $lines);
     }
 
-    /**
-     * @param  list<Producto>  $products
-     * @param  array<string,mixed>|null  $pedido
-     */
     private function rulesReply(
         string $message,
         array $products,
@@ -555,7 +548,6 @@ TXT;
             return 'No vendemos comida: Estilo Dorado es una tienda de regalos y detalles personalizados. ¿Te muestro algo del catálogo (flores, cajitas, detalles, etc.)?';
         }
 
-        // Búsqueda sin resultados
         if (in_array($intent, ['product', 'mixed'], true) && $products === []) {
             return 'No encontré un producto con ese nombre en el catálogo. Prueba con otra palabra (ej. «cerdita», «cajita», «flores») o revisa Inicio. Si buscabas peluches o juguetes, a veces aparecen con otro nombre en el catálogo.';
         }
@@ -628,9 +620,6 @@ TXT;
         return 'No encontré un producto exacto con esa búsqueda. Prueba con otra palabra (ej. «cerdita», «cajita», «flores») o revisa el catálogo en Inicio. También puedo explicar cómo comprar o pagar.';
     }
 
-    /**
-     * @return array<string,mixed>
-     */
     private function productCard(Producto $p): array
     {
         return [
@@ -642,9 +631,6 @@ TXT;
         ];
     }
 
-    /**
-     * @return array<string,mixed>
-     */
     private function pedidoCard(Pedido $p): array
     {
         return [
@@ -657,9 +643,6 @@ TXT;
         ];
     }
 
-    /**
-     * @return list<string>
-     */
     private function suggestions(bool $loggedIn): array
     {
         $base = [
