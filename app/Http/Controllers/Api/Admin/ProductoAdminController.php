@@ -89,7 +89,7 @@ class ProductoAdminController extends Controller
 
         $p->nombre         = $data['nombre'];
         $p->descripcion    = $data['descripcion'] ?? null;
-        $p->etiquetas      = $data['etiquetas'] ?? null;
+        $p->etiquetas      = $this->normalizeEtiquetas($data['etiquetas'] ?? null);
         $p->precio_compra  = $data['precio_compra'];
         $p->precio_venta   = $data['precio_venta'];
         $p->stock          = $data['stock'];
@@ -137,7 +137,9 @@ class ProductoAdminController extends Controller
 
         $p->nombre         = $data['nombre'];
         $p->descripcion    = $data['descripcion'] ?? null;
-        $p->etiquetas      = $data['etiquetas'] ?? null;
+        if (array_key_exists('etiquetas', $data)) {
+            $p->etiquetas = $this->normalizeEtiquetas($data['etiquetas'] ?? null);
+        }
         $p->precio_compra  = $data['precio_compra'];
         $p->precio_venta   = $data['precio_venta'];
         $p->stock          = $data['stock'];
@@ -180,5 +182,16 @@ class ProductoAdminController extends Controller
             'data' => $rows,
             'meta' => ['threshold' => $threshold, 'count' => $rows->count()],
         ]);
+    }
+
+    private function normalizeEtiquetas(?string $raw): ?string
+    {
+        if ($raw === null) {
+            return null;
+        }
+        $parts = preg_split('/[,;]+/', mb_strtolower(trim($raw))) ?: [];
+        $parts = array_values(array_unique(array_filter(array_map('trim', $parts))));
+
+        return $parts === [] ? null : implode(',', $parts);
     }
 }
