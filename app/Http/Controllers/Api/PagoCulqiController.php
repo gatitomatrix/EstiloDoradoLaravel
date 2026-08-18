@@ -18,6 +18,19 @@ class PagoCulqiController extends Controller
             'correo'      => 'required|email',
         ]);
 
+        $private = (string) config('services.culqi.private_key');
+        $demoToken = (bool) preg_match('/^(tok_demo_|tok_mobile_|ype_mobile_)/', $data['token']);
+        $noKey = $private === '' || preg_match('/tu_clave|changeme|xxxxxxxx/i', $private);
+
+        if ($demoToken || $noKey) {
+            return response()->json([
+                'success' => true,
+                'demo'    => true,
+                'message' => 'Pago de demostración (sin cargo real).',
+                'data'    => ['id' => $data['token']],
+            ]);
+        }
+
         try {
             // Base request con Bearer de Culqi
             $http = Http::withToken(config('services.culqi.private_key'));
