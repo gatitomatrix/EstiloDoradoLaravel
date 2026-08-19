@@ -40,6 +40,10 @@ return [
         'api_url' => env('CULQI_API_URL', 'https://api.culqi.com/v2'),
     ],
 
+    'google' => [
+        'client_id' => env('GOOGLE_CLIENT_ID'),
+    ],
+
     'geo' => [
     'enabled'   => env('GEO_ENABLED', true),
     'base'      => env('GEO_NOMINATIM_BASE', 'https://nominatim.openstreetmap.org'),

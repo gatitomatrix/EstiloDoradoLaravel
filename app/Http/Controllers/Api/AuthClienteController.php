@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Http;
 use App\Mail\WelcomeMail;
 
 class AuthClienteController extends Controller
@@ -239,18 +240,19 @@ class AuthClienteController extends Controller
     }
 
     /**
-     * Login / registro con Google.
-     * - Producción: envía id_token (GIS / google_sign_in) y se valida con Google.
-     * - Local sin Client ID: { "demo": true, "email", "nombre", "apellido" } si APP_ENV != production.
+     * Login / registro con Google (Gmail).
+     * Cuerpo: { id_token }  o  { access_token }  (GIS / google_sign_in).
+     * Demo local: { demo: true } solo si APP_ENV != production.
      */
     public function google(Request $request)
     {
         $data = $request->validate([
-            'id_token' => 'nullable|string',
-            'demo'     => 'nullable|boolean',
-            'email'    => 'nullable|email',
-            'nombre'   => 'nullable|string|max:100',
-            'apellido' => 'nullable|string|max:100',
+            'id_token'     => 'nullable|string',
+            'access_token' => 'nullable|string',
+            'demo'         => 'nullable|boolean',
+            'email'        => 'nullable|email',
+            'nombre'       => 'nullable|string|max:100',
+            'apellido'     => 'nullable|string|max:100',
         ]);
 
         $email = null;
@@ -268,19 +270,30 @@ class AuthClienteController extends Controller
             $email = $payload['email'];
             $nombre = $payload['given_name'] ?? ($payload['name'] ?? 'Cliente');
             $apellido = $payload['family_name'] ?? null;
+        } elseif (!empty($data['access_token'])) {
+            $payload = $this->verifyGoogleAccessToken($data['access_token']);
+            if (!$payload || empty($payload['email'])) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No se pudo leer tu cuenta de Google',
+                ], 401);
+            }
+            $email = $payload['email'];
+            $nombre = $payload['given_name'] ?? ($payload['name'] ?? 'Cliente');
+            $apellido = $payload['family_name'] ?? null;
         } elseif (!empty($data['demo']) && !app()->environment('production')) {
-            // Solo local / desarrollo
             $email = $data['email'] ?? 'demo.google@estilodorado.local';
             $nombre = $data['nombre'] ?? 'Cliente';
             $apellido = $data['apellido'] ?? 'Google Demo';
         } else {
             return response()->json([
                 'success' => false,
-                'message' => 'Envía id_token de Google. En local puedes usar demo=true.',
+                'message' => 'Elige tu Gmail. Si falló, revisa GOOGLE_CLIENT_ID en Laravel.',
             ], 422);
         }
 
         $cliente = Cliente::where('email', $email)->first();
+        $created = false;
         if (!$cliente) {
             $cliente = Cliente::create([
                 'nombre'     => $nombre,
@@ -290,13 +303,15 @@ class AuthClienteController extends Controller
                 'direccion'  => null,
                 'contrasena' => Hash::make(Str::random(32)),
             ]);
+            $created = true;
         }
 
         $token = $cliente->createToken('token_cliente', ['client'])->plainTextToken;
 
         return response()->json([
             'success' => true,
-            'message' => 'Login con Google exitoso',
+            'created' => $created,
+            'message' => $created ? 'Cuenta creada con Google' : 'Login con Google exitoso',
             'cliente' => [
                 'id_cliente' => $cliente->id_cliente,
                 'nombre'     => $cliente->nombre,
@@ -309,46 +324,65 @@ class AuthClienteController extends Controller
         ]);
     }
 
-    /**
-     * @return array<string, mixed>|null
-     */
+    private function googleHttp()
+    {
+        $http = Http::timeout(10)->acceptJson();
+        $verify = filter_var(env('VERIFY_SSL', true), FILTER_VALIDATE_BOOLEAN);
+        if (!$verify || app()->environment('local')) {
+            $http = $http->withoutVerifying();
+        }
+
+        return $http;
+    }
+
+    /** @return array<string, mixed>|null */
     private function verifyGoogleIdToken(string $idToken): ?array
     {
-        $url = 'https://oauth2.googleapis.com/tokeninfo?id_token='.urlencode($idToken);
         try {
-            $json = @file_get_contents($url);
-            if ($json === false) {
-                // fallback cURL si allow_url_fopen off
-                if (function_exists('curl_init')) {
-                    $ch = curl_init($url);
-                    curl_setopt_array($ch, [
-                        CURLOPT_RETURNTRANSFER => true,
-                        CURLOPT_TIMEOUT => 8,
-                    ]);
-                    $json = curl_exec($ch);
-                    curl_close($ch);
-                }
-            }
-            if (!$json) {
+            $res = $this->googleHttp()->get('https://oauth2.googleapis.com/tokeninfo', [
+                'id_token' => $idToken,
+            ]);
+            if (!$res->ok()) {
                 return null;
             }
-            $payload = json_decode($json, true);
+            $payload = $res->json();
             if (!is_array($payload) || empty($payload['email'])) {
                 return null;
             }
+            $expected = config('services.google.client_id');
             $aud = $payload['aud'] ?? null;
-            $expected = env('GOOGLE_CLIENT_ID');
             if ($expected && $aud && $aud !== $expected) {
                 Log::warning('[google] aud mismatch', ['aud' => $aud]);
-                // En local permitimos si no hay match estricto solo si GOOGLE_CLIENT_ID vacío
-                if ($expected) {
-                    return null;
-                }
+
+                return null;
             }
 
             return $payload;
         } catch (\Throwable $e) {
-            Log::warning('[google] verify fail: '.$e->getMessage());
+            Log::warning('[google] id_token fail: '.$e->getMessage());
+
+            return null;
+        }
+    }
+
+    /** @return array<string, mixed>|null */
+    private function verifyGoogleAccessToken(string $accessToken): ?array
+    {
+        try {
+            $res = $this->googleHttp()
+                ->withToken($accessToken)
+                ->get('https://www.googleapis.com/oauth2/v3/userinfo');
+            if (!$res->ok()) {
+                return null;
+            }
+            $payload = $res->json();
+            if (!is_array($payload) || empty($payload['email'])) {
+                return null;
+            }
+
+            return $payload;
+        } catch (\Throwable $e) {
+            Log::warning('[google] access_token fail: '.$e->getMessage());
 
             return null;
         }
