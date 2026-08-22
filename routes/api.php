@@ -29,6 +29,7 @@ use App\Http\Controllers\Api\PagoCulqiController;
 use App\Http\Controllers\Api\FeController;
 use App\Http\Controllers\Api\CheckoutController;
 use App\Http\Controllers\Api\PedidoPagoController;
+use App\Http\Controllers\Api\EnvioController;
 use App\Http\Controllers\Api\GeoController;
 
 use App\Http\Controllers\Api\AsistenteController;
@@ -40,6 +41,7 @@ use App\Http\Controllers\Api\Admin\AdminEventsController;
 // ---------------------------------------------------------
 Route::get('geo/search', [GeoController::class, 'search']);
 Route::get('geo/reverse', [GeoController::class, 'reverse']);
+Route::get('envio/estimado', [EnvioController::class, 'estimado']);
 Route::get('ping', fn() => 'pong');
 
 // Asistente IA / chatbot (público; si hay Bearer token de cliente, puede ver sus pedidos)
