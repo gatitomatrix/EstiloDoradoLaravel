@@ -33,11 +33,20 @@ class ProductoController extends Controller
             }
             $q->where(function ($w) use ($tokens) {
                 foreach ($tokens as $t) {
-                    $like = '%'.$t.'%';
-                    $w->orWhere('nombre', 'like', $like)
-                        ->orWhere('descripcion', 'like', $like)
-                        ->orWhere('slug', 'like', $like)
-                        ->orWhere('etiquetas', 'like', $like);
+                    $variants = [$t];
+                    if (str_ends_with($t, 'es') && mb_strlen($t) > 4) {
+                        $variants[] = mb_substr($t, 0, -1);
+                        $variants[] = mb_substr($t, 0, -2);
+                    } elseif (str_ends_with($t, 's') && mb_strlen($t) > 3) {
+                        $variants[] = mb_substr($t, 0, -1);
+                    }
+                    foreach (array_unique($variants) as $v) {
+                        $like = '%'.$v.'%';
+                        $w->orWhere('nombre', 'like', $like)
+                            ->orWhere('descripcion', 'like', $like)
+                            ->orWhere('slug', 'like', $like)
+                            ->orWhere('etiquetas', 'like', $like);
+                    }
                 }
             });
         }
