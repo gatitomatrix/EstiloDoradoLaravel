@@ -79,7 +79,8 @@ class AsistenteService
     {
         return <<<'TXT'
 Eres el asistente virtual de la tienda "Estilo Dorado" (regalos y detalles personalizados, Cerro de Pasco, Perú).
-Responde SIEMPRE en español, breve y amable (máximo 100 palabras).
+Responde SIEMPRE en español, breve (máximo 60 palabras, 2 o 3 frases).
+No pidas registrarse para ver el catálogo: es público. No saludes de nuevo si ya saludaste.
 
 REGLAS ESTRICTAS:
 1) Usa SOLO precios, stock, nombres y totales del CONTEXTO. No inventes productos ni cantidades.
@@ -128,7 +129,7 @@ TXT;
         if (preg_match('/cu[aá]ntos\s+product|cu[aá]ntas\s+cosas|total\s+del\s+cat[aá]logo|variedad/u', $m)) {
             return 'catalog_count';
         }
-        if (preg_match('/qu[eé]\s+product|cat[aá]logo|qu[eé]\s+venden|qu[eé]\s+tienen/u', $m)) {
+        if (preg_match('/qu[eé]\s+(product|cosas|venden|vendes|tienen)|cat[aá]logo|qu[eé]\s+hay\b|qu[eé]\s+venden/u', $m)) {
             return 'catalog';
         }
         if (preg_match('/hola|buenos|buenas|hey|ayuda|qu[eé]\s+puedes/u', $m)
@@ -633,7 +634,7 @@ TXT;
                 );
             })->implode("\n");
 
-            return "Algunos productos del catálogo ({$catalogCount} en total):\n{$list}\nPuedes tocar un producto o buscar por nombre.";
+            return "Tenemos {$catalogCount} productos. Algunos:\n{$list}\nDime un nombre (cerdita, cajita, flores) o mira Inicio.";
         }
 
         if ($pedido !== null) {
