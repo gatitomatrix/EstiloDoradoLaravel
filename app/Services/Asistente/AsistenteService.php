@@ -36,8 +36,9 @@ class AsistenteService
         $driver = strtolower((string) config('llm.driver', 'ollama'));
         $reply = null;
         $used = 'rules';
+        $skipLlm = in_array($intent, ['help', 'howto', 'payment', 'account', 'catalog', 'catalog_count'], true);
 
-        if (in_array($driver, ['ollama', 'gemini'], true)) {
+        if (! $skipLlm && in_array($driver, ['ollama', 'gemini'], true)) {
             $system = $this->systemPrompt();
             $user = "Contexto de la tienda (usa SOLO estos datos; no inventes):\n{$context}\n\nPregunta del cliente:\n{$message}";
 
@@ -83,8 +84,8 @@ Responde SIEMPRE en español, breve y amable (máximo 100 palabras).
 REGLAS ESTRICTAS:
 1) Usa SOLO precios, stock, nombres y totales del CONTEXTO. No inventes productos ni cantidades.
 2) El campo "total_productos_activos" es el número real del catálogo. Si te preguntan cuántos hay, usa ese número.
-3) Si un producto aparece en "Productos encontrados", existe. Di su precio y stock exactos.
-4) Si "Productos encontrados" está vacío y buscan un artículo, di que no lo hallaste y sugiere el catálogo de la app.
+3) Si un producto aparece en "Productos encontrados", existe. Di su precio y stock exactos. PROHIBIDO decir "no tenemos" / "no encontré" si esa lista NO está vacía.
+4) Si "Productos encontrados" está vacío y buscan un artículo, di que no lo hallaste y sugiere el catálogo.
 5) NO digas que hay que descargar de App Store/Google Play ni inventes dominios (no uses www.estilodorado.com).
 6) Registro: en la app o web, perfil → Regístrate (correo y contraseña) o «Continuar con Google» (Gmail).
 7) Compra: producto → carrito → entrega (recojo en tienda o envío express) → pago (tarjeta Culqi en prueba, Yape o efectivo).
@@ -459,6 +460,10 @@ TXT;
             if (str_contains($t, 'caja') || str_contains($t, 'cajit')) {
                 $extra[] = 'cajita';
                 $extra[] = 'caja';
+            }
+            if (str_contains($t, 'dulce') || str_contains($t, 'chocolate') || str_contains($t, 'golosina') || str_contains($t, 'caramelo')) {
+                $extra[] = 'dulces';
+                $extra[] = 'dulce';
             }
             if (str_contains($t, 'cartera') || str_contains($t, 'billetera') || str_contains($t, 'monedero')) {
                 $extra[] = 'billetera';
