@@ -92,8 +92,9 @@ REGLAS ESTRICTAS:
 9) Si preguntan por comida u otro rubro ajeno, indícalo con amabilidad y ofrece regalos/detalles del catálogo.
 10) Si "Productos encontrados" está vacío: di que NO hay ese artículo. NO nombres un producto concreto (ni Cerdita ni otro) como si fuera lo que pidieron. Invita a buscar en Inicio.
 11) Si hay productos en la lista, ofrécelos. Si pidieron "ositos" y la lista está vacía, no inventes peluches de oso.
-12) NUNCA digas que ya agregaste algo al carrito. Solo puedes invitar a usar el botón "Agregar" o a confirmar.
-13) No des información de otros clientes.
+12) Si piden un regalo para novia, novio o pareja y hay productos en el contexto, recomiéndalos (flores, detalles, peluche). No los mandes solo a "Inicio" si ya tienes opciones.
+13) NUNCA digas que ya agregaste algo al carrito. Solo puedes invitar a usar el botón "Agregar" o a confirmar.
+14) No des información de otros clientes.
 TXT;
     }
 
@@ -130,7 +131,7 @@ TXT;
             return 'catalog';
         }
         if (preg_match('/hola|buenos|buenas|hey|ayuda|qu[eé]\s+puedes/u', $m)
-            && ! preg_match('/busco|precio|stock|compr|product|pedido/u', $m)) {
+            && ! preg_match('/busco|precio|stock|compr|product|pedido|novia|novio|regalo|recomiend|quisiera|para\s+mi/u', $m)) {
             return 'help';
         }
         if (preg_match('/hambre|comida|pizza|hamburg|almorz|cenar|restaurante/u', $m)
@@ -410,7 +411,7 @@ TXT;
             'variedad', 'diferentes', 'disponible', 'disponibles', 'unidad', 'unidades',
             'hambre', 'comida', 'cosas', 'preguntarte', 'puedes', 'puede', 'hacer',
             'tienes', 'tenéis', 'tendre', 'tendré', 'algun', 'algún', 'algunos', 'algunas',
-            'vendes', 'venden', 'sale', 'salen',
+            'vendes', 'venden', 'sale', 'salen', 'quisiera', 'gustaria', 'gustaría', 'para',
         ];
 
         foreach ($stop as $w) {
@@ -462,6 +463,14 @@ TXT;
             if (str_contains($t, 'cartera') || str_contains($t, 'billetera') || str_contains($t, 'monedero')) {
                 $extra[] = 'billetera';
                 $extra[] = 'cartera';
+            }
+            if (str_contains($t, 'novia') || str_contains($t, 'novio') || str_contains($t, 'pareja')
+                || str_contains($t, 'enamorad') || str_contains($t, 'recomiend') || str_contains($t, 'suger')
+                || str_contains($t, 'regalo')) {
+                $extra[] = 'romance';
+                $extra[] = 'pareja';
+                $extra[] = 'flores';
+                $extra[] = 'detalle';
             }
         }
 
