@@ -355,6 +355,10 @@ TXT;
             if ($required !== [] && ! $this->hayContainsAny($hay, $required)) {
                 continue;
             }
+            $wantsPlush = (bool) preg_match('/peluch|\bosito|\boso/u', mb_strtolower($message));
+            if ($wantsPlush && preg_match('/bolso|mochila|piton|pitón/u', $name)) {
+                continue;
+            }
             $score = 0;
             foreach ($tokens as $t) {
                 if (str_contains($name, $t)) {
@@ -366,8 +370,15 @@ TXT;
                 if ($tags !== '' && str_contains($tags, $t)) {
                     $score += 12;
                 } elseif (str_contains($desc, $t)) {
-                    $score += 2;
+                    $score += 6;
                 }
+            }
+            $wantsPlush = (bool) preg_match('/peluch|osito|oso/u', mb_strtolower($message));
+            if ($wantsPlush && (str_contains($desc, 'osito') || str_contains($desc, 'peluche de oso') || str_contains($name, 'peluche'))) {
+                $score += 8;
+            }
+            if ($wantsPlush && preg_match('/bolso|mochila|piton|pitón|cuero/u', $name.' '.$desc)) {
+                $score -= 15;
             }
             if ($score > 0) {
                 $scored[] = ['p' => $p, 's' => $score + min(3, (int) $p->stock / 10)];
