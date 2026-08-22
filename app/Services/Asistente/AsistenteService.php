@@ -86,13 +86,14 @@ REGLAS ESTRICTAS:
 3) Si un producto aparece en "Productos encontrados", existe. Di su precio y stock exactos.
 4) Si "Productos encontrados" está vacío y buscan un artículo, di que no lo hallaste y sugiere el catálogo de la app.
 5) NO digas que hay que descargar de App Store/Google Play ni inventes dominios (no uses www.estilodorado.com).
-6) Registro: en la app o web local, menú de perfil → Regístrate (correo y contraseña). También hay "Continuar con Google" en modo demo local.
+6) Registro: en la app o web, perfil → Regístrate (correo y contraseña) o «Continuar con Google» (Gmail).
 7) Compra: producto → carrito → entrega (recojo en tienda o envío express) → pago (tarjeta Culqi en prueba, Yape o efectivo).
 8) Pedidos: solo con datos del contexto; si no hay, pide iniciar sesión y el número de pedido.
 9) Si preguntan por comida u otro rubro ajeno, indícalo con amabilidad y ofrece regalos/detalles del catálogo.
-10) Si buscan "peluches" u otra categoría y hay productos encontrados (aunque el nombre no diga peluche), ofrécelos como opciones cercanas del catálogo. Solo di "no hay" si Productos encontrados está vacío.
-11) NUNCA digas que ya agregaste algo al carrito. Solo puedes invitar a usar el botón "Agregar" o a confirmar.
-12) No des información de otros clientes.
+10) Si "Productos encontrados" está vacío: di que NO hay ese artículo. NO nombres un producto concreto (ni Cerdita ni otro) como si fuera lo que pidieron. Invita a buscar en Inicio.
+11) Si hay productos en la lista, ofrécelos. Si pidieron "ositos" y la lista está vacía, no inventes peluches de oso.
+12) NUNCA digas que ya agregaste algo al carrito. Solo puedes invitar a usar el botón "Agregar" o a confirmar.
+13) No des información de otros clientes.
 TXT;
     }
 
@@ -331,6 +332,8 @@ TXT;
             return [];
         }
 
+        $required = $this->requiredNeedles($message);
+
         $scored = [];
         $candidates = (clone $base)
             ->where(function ($b) use ($tokens) {
@@ -347,6 +350,11 @@ TXT;
         foreach ($candidates as $p) {
             $name = mb_strtolower((string) $p->nombre);
             $tags = mb_strtolower((string) ($p->etiquetas ?? ''));
+            $desc = mb_strtolower((string) ($p->descripcion ?? ''));
+            $hay = $name.' '.$tags.' '.$desc;
+            if ($required !== [] && ! $this->hayContainsAny($hay, $required)) {
+                continue;
+            }
             $score = 0;
             foreach ($tokens as $t) {
                 if (str_contains($name, $t)) {
@@ -357,7 +365,7 @@ TXT;
                 }
                 if ($tags !== '' && str_contains($tags, $t)) {
                     $score += 12;
-                } elseif (str_contains(mb_strtolower((string) $p->descripcion), $t)) {
+                } elseif (str_contains($desc, $t)) {
                     $score += 2;
                 }
             }
@@ -390,6 +398,8 @@ TXT;
             'and', 'app', 'web', 'movil', 'móvil', 'solo', 'total', 'catalogo', 'catálogo',
             'variedad', 'diferentes', 'disponible', 'disponibles', 'unidad', 'unidades',
             'hambre', 'comida', 'cosas', 'preguntarte', 'puedes', 'puede', 'hacer',
+            'tienes', 'tenéis', 'tendre', 'tendré', 'algun', 'algún', 'algunos', 'algunas',
+            'vendes', 'venden', 'sale', 'salen',
         ];
 
         foreach ($stop as $w) {
@@ -418,19 +428,18 @@ TXT;
                 $extra[] = 'tiburon';
                 $extra[] = 'tiburón';
             }
-            if (str_contains($t, 'peluch') || str_contains($t, 'muñec') || str_contains($t, 'munec') || str_contains($t, 'juguet')) {
-                $extra[] = 'cerdita';
-                $extra[] = 'tiburon';
-                $extra[] = 'tiburón';
-                $extra[] = 'pinguino';
-                $extra[] = 'pingüino';
+            if (preg_match('/^osit/u', $t) || $t === 'oso' || $t === 'osos' || $t === 'teddy') {
                 $extra[] = 'oso';
-                $extra[] = 'muñeca';
+                $extra[] = 'osito';
+                $extra[] = 'ositos';
             }
-            if (str_contains($t, 'regalo') || str_contains($t, 'detalle')) {
-                $extra[] = 'personalizado';
-                $extra[] = 'cajita';
-                $extra[] = 'flores';
+            if (str_contains($t, 'peluch')) {
+                $extra[] = 'peluche';
+                $extra[] = 'peluches';
+            }
+            if (str_contains($t, 'muñec') || str_contains($t, 'munec')) {
+                $extra[] = 'muñeca';
+                $extra[] = 'muñeco';
             }
             if (str_contains($t, 'flor')) {
                 $extra[] = 'flores';
@@ -442,6 +451,28 @@ TXT;
         }
 
         return array_values(array_unique(array_merge($tokens, $extra)));
+    }
+
+    /** Si piden un animal/tipo concreto, el producto DEBE mencionarlo. */
+    private function requiredNeedles(string $message): array
+    {
+        $m = mb_strtolower($message);
+        if (preg_match('/\b(oso|osos|osito|ositos|teddy)\b/u', $m)) {
+            return ['oso', 'osito', 'ositos', 'osos', 'teddy'];
+        }
+
+        return [];
+    }
+
+    private function hayContainsAny(string $hay, array $needles): bool
+    {
+        foreach ($needles as $n) {
+            if ($n !== '' && str_contains($hay, $n)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function findPedido(string $message, ?Cliente $cliente): ?array
@@ -515,7 +546,7 @@ TXT;
             ? '- (sin pedido en contexto)'
             : '- '.json_encode($pedido, JSON_UNESCAPED_UNICODE);
 
-        $lines[] = 'Ayuda fija: registro en la app (Regístrate) o Google demo local; compra en la misma app; pagos tarjeta Culqi prueba / Yape / efectivo; entrega recojo o express. No inventes enlaces de tiendas de aplicaciones.';
+        $lines[] = 'Ayuda fija: registro con correo o Continuar con Google (Gmail real); compra en la misma app; pagos Culqi prueba / Yape / efectivo; entrega recojo o express. No inventes enlaces de tiendas de aplicaciones.';
 
         return implode("\n", $lines);
     }
@@ -533,7 +564,7 @@ TXT;
         }
 
         if ($intent === 'account') {
-            return 'Para crear tu usuario: en la app ve a Iniciar sesión → Regístrate (nombre, correo y contraseña). También puedes usar «Continuar con Google» en modo demo local. No hace falta App Store para probar en el emulador.';
+            return 'Para crear tu usuario: Iniciar sesión → Regístrate (nombre, correo y contraseña) o «Continuar con Google» con tu Gmail.';
         }
 
         if ($intent === 'howto') {
@@ -549,7 +580,11 @@ TXT;
         }
 
         if (in_array($intent, ['product', 'mixed'], true) && $products === []) {
-            return 'No encontré un producto con ese nombre en el catálogo. Prueba con otra palabra (ej. «cerdita», «cajita», «flores») o revisa Inicio. Si buscabas peluches o juguetes, a veces aparecen con otro nombre en el catálogo.';
+            if (preg_match('/\b(oso|osos|osito|ositos|teddy)\b/u', mb_strtolower($message))) {
+                return 'No tenemos peluches de oso / ositos en el catálogo. En Inicio puedes ver otros peluches o detalles (por nombre, no como osos). ¿Buscas otra cosa, por ejemplo cerdita o cajita?';
+            }
+
+            return 'No encontré un producto con ese nombre en el catálogo. Prueba con otra palabra (ej. «cerdita», «cajita», «flores») o revisa Inicio.';
         }
 
         if ($intent === 'catalog_count') {
