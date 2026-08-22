@@ -459,6 +459,10 @@ TXT;
                 $extra[] = 'cajita';
                 $extra[] = 'caja';
             }
+            if (str_contains($t, 'cartera') || str_contains($t, 'billetera') || str_contains($t, 'monedero')) {
+                $extra[] = 'billetera';
+                $extra[] = 'cartera';
+            }
         }
 
         return array_values(array_unique(array_merge($tokens, $extra)));

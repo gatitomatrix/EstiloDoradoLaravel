@@ -40,6 +40,18 @@ class ProductoController extends Controller
                     } elseif (str_ends_with($t, 's') && mb_strlen($t) > 3) {
                         $variants[] = mb_substr($t, 0, -1);
                     }
+                    $syn = [
+                        'cartera' => ['billetera'],
+                        'carteras' => ['billetera', 'billeteras'],
+                        'billetera' => ['cartera'],
+                        'billeteras' => ['cartera', 'carteras'],
+                        'monedero' => ['billetera', 'cartera'],
+                    ];
+                    foreach ($variants as $v) {
+                        foreach ($syn[$v] ?? [] as $s) {
+                            $variants[] = $s;
+                        }
+                    }
                     foreach (array_unique($variants) as $v) {
                         $like = '%'.$v.'%';
                         $w->orWhere('nombre', 'like', $like)
