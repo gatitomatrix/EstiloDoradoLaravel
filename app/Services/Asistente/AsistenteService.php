@@ -94,7 +94,7 @@ REGLAS ESTRICTAS:
 9) Si preguntan por comida u otro rubro ajeno, indícalo con amabilidad y ofrece regalos/detalles del catálogo.
 10) Si "Productos encontrados" está vacío: di que NO hay ese artículo. NO nombres un producto concreto (ni Cerdita ni otro) como si fuera lo que pidieron. Invita a buscar en Inicio.
 11) Si hay productos en la lista, ofrécelos. Si pidieron "ositos" y la lista está vacía, no inventes peluches de oso.
-12) Si piden un regalo para novia, novio o pareja y hay productos en el contexto, recomiéndalos (flores, detalles, peluche). No los mandes solo a "Inicio" si ya tienes opciones.
+12) Si piden un regalo para novia, novio, pareja, mujer, chica o cumpleaños y hay productos en el contexto, recomiéndalos (flores, cajitas, peluche, detalles). No los mandes solo a "Inicio" si ya tienes opciones. No ofrezcas billeteras de caballero si pidieron para mujer.
 13) NUNCA digas que ya agregaste algo al carrito. Solo puedes invitar a usar el botón "Agregar" o a confirmar.
 14) No des información de otros clientes.
 TXT;
@@ -362,7 +362,14 @@ TXT;
             if ($wantsPlush && preg_match('/bolso|mochila|piton|pitón/u', $name)) {
                 continue;
             }
+            $msg = mb_strtolower($message);
+            if (preg_match('/mujer|chica|dama|se[nñ]orita/u', $msg) && str_contains($tags, 'caballero')) {
+                continue;
+            }
             $score = 0;
+            if (preg_match('/cumplea|cumple\b|fiesta/u', $msg) && (str_contains($tags, 'cumplea') || str_contains($tags, 'fiesta') || str_contains($tags, 'globo'))) {
+                $score += 10;
+            }
             foreach ($tokens as $t) {
                 if (str_contains($name, $t)) {
                     $score += 10;
@@ -472,12 +479,29 @@ TXT;
             }
             if (str_contains($t, 'novia') || str_contains($t, 'novio') || str_contains($t, 'pareja')
                 || str_contains($t, 'enamorad') || str_contains($t, 'recomiend') || str_contains($t, 'suger')
-                || str_contains($t, 'regalo')) {
+                || str_contains($t, 'regalo') || str_contains($t, 'regalar')) {
                 $extra[] = 'romance';
                 $extra[] = 'pareja';
                 $extra[] = 'flores';
                 $extra[] = 'detalle';
             }
+        }
+
+        $blob = mb_strtolower($message);
+        if (preg_match('/cumplea|cumple\b|aniversario|fiesta/u', $blob)) {
+            $extra[] = 'cumpleaños';
+            $extra[] = 'fiesta';
+            $extra[] = 'globos';
+            $extra[] = 'flores';
+            $extra[] = 'cajita';
+        }
+        if (preg_match('/mujer|chica|dama|se[nñ]orita|joven/u', $blob)
+            && ! preg_match('/hombre|caballero|novio\b/u', $blob)) {
+            $extra[] = 'flores';
+            $extra[] = 'peluche';
+            $extra[] = 'cajita';
+            $extra[] = 'detalle';
+            $extra[] = 'perfume';
         }
 
         return array_values(array_unique(array_merge($tokens, $extra)));
