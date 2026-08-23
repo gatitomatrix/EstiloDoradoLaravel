@@ -20,8 +20,9 @@ class AsistenteController extends Controller
         ]);
 
         if (function_exists('set_time_limit')) {
-            @set_time_limit(120);
+            @set_time_limit(180);
         }
+        @ini_set('max_execution_time', '180');
 
         $cliente = $this->resolveCliente($request);
 

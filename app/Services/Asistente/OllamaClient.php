@@ -12,12 +12,15 @@ class OllamaClient
         $base = config('llm.ollama.base_url');
         $model = config('llm.ollama.model');
         $timeout = (int) config('llm.ollama.timeout', 90);
+        $timeout = max($timeout, 120);
+        @ini_set('max_execution_time', '180');
         if (function_exists('set_time_limit')) {
-            @set_time_limit(max(120, $timeout + 30));
+            @set_time_limit(180);
         }
 
         try {
             $response = Http::timeout($timeout)
+                ->connectTimeout(15)
                 ->acceptJson()
                 ->post($base.'/api/chat', [
                     'model' => $model,
@@ -28,7 +31,7 @@ class OllamaClient
                     ],
                     'options' => [
                         'temperature' => 0.3,
-                        'num_predict' => 400,
+                        'num_predict' => 80,
                     ],
                 ]);
 
