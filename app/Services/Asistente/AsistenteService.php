@@ -94,7 +94,7 @@ REGLAS ESTRICTAS:
 9) Si preguntan por comida u otro rubro ajeno, indícalo con amabilidad y ofrece regalos/detalles del catálogo.
 10) Si "Productos encontrados" está vacío: di que NO hay ese artículo. NO nombres un producto concreto (ni Cerdita ni otro) como si fuera lo que pidieron. Invita a buscar en Inicio.
 11) Si hay productos en la lista, ofrécelos. Si pidieron "ositos" y la lista está vacía, no inventes peluches de oso.
-12) Si piden un regalo para novia, novio, pareja, mujer, chica o cumpleaños y hay productos en el contexto, recomiéndalos (flores, cajitas, peluche, detalles). No los mandes solo a "Inicio" si ya tienes opciones. No ofrezcas billeteras de caballero si pidieron para mujer.
+12) Si piden un regalo para novia, mujer, chica o cumpleaños, ofrece flores, cajitas, peluche o detalles. Si piden para hombre, papá, esposo o caballero, prioriza billeteras y accesorios de caballero; no ofrezcas solo flores. No los mandes solo a "Inicio" si ya tienes opciones.
 13) NUNCA digas que ya agregaste algo al carrito. Solo puedes invitar a usar el botón "Agregar" o a confirmar.
 14) No des información de otros clientes.
 TXT;
@@ -363,10 +363,17 @@ TXT;
                 continue;
             }
             $msg = mb_strtolower($message);
-            if (preg_match('/mujer|chica|dama|se[nñ]orita/u', $msg) && str_contains($tags, 'caballero')) {
+            if (preg_match('/mujer|chica|dama|se[nñ]orita|novia/u', $msg) && str_contains($tags, 'caballero')) {
+                continue;
+            }
+            if (preg_match('/para\s+(un\s+|el\s+|mi\s+)?(hombre|caballero|chico|var[oó]n|pap[aá]|padre|esposo|marido)\b/u', $msg)
+                && preg_match('/\b(novia|dama)\b/u', $tags) && ! str_contains($tags, 'caballero')) {
                 continue;
             }
             $score = 0;
+            if (preg_match('/hombre|caballero|pap[aá]|padre|esposo/u', $msg) && (str_contains($tags, 'caballero') || str_contains($name, 'billetera') || str_contains($tags, 'militar'))) {
+                $score += 12;
+            }
             if (preg_match('/cumplea|cumple\b|fiesta/u', $msg) && (str_contains($tags, 'cumplea') || str_contains($tags, 'fiesta') || str_contains($tags, 'globo'))) {
                 $score += 10;
             }
@@ -480,28 +487,38 @@ TXT;
             if (str_contains($t, 'novia') || str_contains($t, 'novio') || str_contains($t, 'pareja')
                 || str_contains($t, 'enamorad') || str_contains($t, 'recomiend') || str_contains($t, 'suger')
                 || str_contains($t, 'regalo') || str_contains($t, 'regalar')) {
-                $extra[] = 'romance';
-                $extra[] = 'pareja';
-                $extra[] = 'flores';
                 $extra[] = 'detalle';
             }
         }
 
         $blob = mb_strtolower($message);
+        $paraHombre = (bool) preg_match('/para\s+(un\s+|el\s+|mi\s+)?(hombre|caballero|chico|var[oó]n|pap[aá]|padre|esposo|marido|novio)\b/u', $blob)
+            || (bool) preg_match('/\b(hombre|caballero)s?\b/u', $blob) && ! preg_match('/mujer|chica|dama|novia/u', $blob);
+        $paraMujer = (bool) preg_match('/mujer|chica|dama|se[nñ]orita|novia/u', $blob)
+            && ! $paraHombre;
+
         if (preg_match('/cumplea|cumple\b|aniversario|fiesta/u', $blob)) {
             $extra[] = 'cumpleaños';
             $extra[] = 'fiesta';
             $extra[] = 'globos';
-            $extra[] = 'flores';
             $extra[] = 'cajita';
+            if (! $paraHombre) {
+                $extra[] = 'flores';
+            }
         }
-        if (preg_match('/mujer|chica|dama|se[nñ]orita|joven/u', $blob)
-            && ! preg_match('/hombre|caballero|novio\b/u', $blob)) {
+        if ($paraMujer) {
             $extra[] = 'flores';
             $extra[] = 'peluche';
             $extra[] = 'cajita';
             $extra[] = 'detalle';
             $extra[] = 'perfume';
+            $extra[] = 'romance';
+        }
+        if ($paraHombre) {
+            $extra[] = 'caballero';
+            $extra[] = 'billetera';
+            $extra[] = 'accesorio';
+            $extra[] = 'militar';
         }
 
         return array_values(array_unique(array_merge($tokens, $extra)));
