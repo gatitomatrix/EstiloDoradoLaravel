@@ -12,6 +12,9 @@ class OllamaClient
         $base = config('llm.ollama.base_url');
         $model = config('llm.ollama.model');
         $timeout = (int) config('llm.ollama.timeout', 90);
+        if (function_exists('set_time_limit')) {
+            @set_time_limit(max(120, $timeout + 30));
+        }
 
         try {
             $response = Http::timeout($timeout)

@@ -19,6 +19,10 @@ class AsistenteController extends Controller
             'offered_ids.*' => 'integer|min:1',
         ]);
 
+        if (function_exists('set_time_limit')) {
+            @set_time_limit(120);
+        }
+
         $cliente = $this->resolveCliente($request);
 
         try {
