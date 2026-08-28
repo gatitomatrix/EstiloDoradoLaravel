@@ -190,6 +190,9 @@ Route::prefix('admin')->middleware(['auth:sanctum','abilities:admin'])->group(fu
         Route::get('reportes/inventario.{ext}',  [ReporteAdminController::class, 'inventario'])->where('ext', 'xlsx|csv|pdf');
         Route::get('reportes/financiero',        [ReporteAdminController::class, 'financiero']);
         Route::get('reportes/financiero.{ext}',  [ReporteAdminController::class, 'financieroExport'])->where('ext', 'xlsx|csv|pdf');
+        Route::get('reportes/ventas-dia.{ext}',  [ReporteAdminController::class, 'ventasDia'])->where('ext', 'xlsx|csv|pdf');
+        Route::get('reportes/forma-pago.{ext}',  [ReporteAdminController::class, 'formaPago'])->where('ext', 'xlsx|csv|pdf');
+        Route::get('reportes/top-productos.{ext}', [ReporteAdminController::class, 'topProductos'])->where('ext', 'xlsx|csv|pdf');
         Route::get('reportes/stock-bajo.{ext}',  [ReporteAdminController::class, 'stockBajo'])->where('ext', 'xlsx|csv|pdf');
         Route::get('auditoria',                  [AuditoriaAdminController::class, 'index']);
     });

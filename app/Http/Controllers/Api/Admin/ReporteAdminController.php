@@ -181,6 +181,51 @@ class ReporteAdminController extends Controller
         );
     }
 
+    public function ventasDia(string $ext, Request $request)
+    {
+        $data = $this->buildFinanciero($request);
+        $rows = array_map(fn ($d) => [$d['fecha'], $d['pedidos'], $d['total']], $data['por_dia']);
+
+        return $this->export->download(
+            'reporte_ventas_dia',
+            'Ventas por día — Estilo Dorado',
+            ['Fecha', 'Pedidos', 'Total (S/)'],
+            $rows,
+            $ext
+        );
+    }
+
+    public function formaPago(string $ext, Request $request)
+    {
+        $data = $this->buildFinanciero($request);
+        $rows = array_map(fn ($p) => [$p['metodo'], $p['pedidos'], $p['total']], $data['por_pago']);
+
+        return $this->export->download(
+            'reporte_forma_pago',
+            'Ventas por forma de pago — Estilo Dorado',
+            ['Forma de pago', 'Pedidos', 'Total (S/)'],
+            $rows,
+            $ext
+        );
+    }
+
+    public function topProductos(string $ext, Request $request)
+    {
+        $data = $this->buildFinanciero($request);
+        $rows = array_map(
+            fn ($p) => [$p['id'], $p['nombre'], $p['unidades'], $p['importe']],
+            $data['top_productos']
+        );
+
+        return $this->export->download(
+            'reporte_top_productos',
+            'Productos que más facturaron — Estilo Dorado',
+            ['ID', 'Producto', 'Unidades', 'Importe (S/)'],
+            $rows,
+            $ext
+        );
+    }
+
     /** Productos con stock ≤ umbral (default 10), para reposición. */
     public function stockBajo(string $ext, Request $request)
     {
