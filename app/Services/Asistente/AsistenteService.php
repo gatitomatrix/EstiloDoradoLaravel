@@ -84,7 +84,8 @@ Eres Dori, asistente de ventas de "Estilo Dorado" (regalos, detalles personaliza
 
 ESTILO:
 - 2 a 5 frases. Puedes hacer UNA pregunta corta al final para seguir la conversación (¿para quién es?, ¿presupuesto?, ¿recojo o envío?).
-- Tutea. No saludes otra vez si el cliente ya saludó.
+- Tutea. NUNCA te presentes de nuevo ni empieces con «Hola, soy…»: el cliente ya vio tu saludo en la ventana. Responde DIRECTO a lo que pidió.
+- Si mezcla saludo y pedido («hola, es el cumpleaños de mi hermano»), ignora el hola y recomienda productos.
 - Si el tema es de la tienda (regalo, ocasión, envío, pago, stock, pedido, personalizado, horario, ubicación), responde con gusto. Si es comida u otro rubro, redirige con amabilidad al catálogo.
 
 DATOS FIJOS DE LA TIENDA (puedes usarlos siempre):
@@ -144,8 +145,8 @@ TXT;
         if (preg_match('/qu[eé]\s+(product|cosas|venden|vendes|tienen)|cat[aá]logo|qu[eé]\s+hay\b|qu[eé]\s+venden/u', $m)) {
             return 'catalog';
         }
-        if (preg_match('/hola|buenos|buenas|hey|ayuda|qu[eé]\s+puedes/u', $m)
-            && ! preg_match('/busco|precio|stock|compr|product|pedido|novia|novio|regalo|recomiend|quisiera|para\s+mi|envio|env[ií]o|horario|donde|ubic/u', $m)) {
+        $soloSaludo = (bool) preg_match('/^(hola|buenos\s*d[ií]as|buenas(?:\s*tardes|\s*noches)?|hey|ayuda|qu[eé]\s+puedes\s+hacer)[\s!¡.?]*$/u', $m);
+        if ($soloSaludo) {
             return 'help';
         }
         if (preg_match('/hambre|comida|pizza|hamburg|almorz|cenar|restaurante/u', $m)
@@ -504,8 +505,8 @@ TXT;
         }
 
         $blob = mb_strtolower($message);
-        $paraHombre = (bool) preg_match('/para\s+(un\s+|el\s+|mi\s+)?(hombre|caballero|chico|var[oó]n|pap[aá]|padre|esposo|marido|novio)\b/u', $blob)
-            || (bool) preg_match('/\b(hombre|caballero)s?\b/u', $blob) && ! preg_match('/mujer|chica|dama|novia/u', $blob);
+        $paraHombre = (bool) preg_match('/\b(hermano|t[ií]o|primo|suegro|pap[aá]|padre|esposo|marido|novio|hombre|caballero|chico|var[oó]n)\b/u', $blob)
+            && ! preg_match('/hermana|mujer|chica|dama|novia|mam[aá]|t[ií]a/u', $blob);
         $paraMujer = (bool) preg_match('/mujer|chica|dama|se[nñ]orita|novia/u', $blob)
             && ! $paraHombre;
 
@@ -645,8 +646,8 @@ TXT;
         int $catalogCount,
         string $intent,
     ): string {
-        if ($intent === 'help' || preg_match('/hola|buenos|buenas|hey/u', mb_strtolower($message))) {
-            return '¡Hola! Soy el asistente de Estilo Dorado. Puedo ayudarte con productos, precios, stock, cómo comprar, formas de pago o el estado de tu pedido (si inicias sesión). ¿Qué necesitas?';
+        if ($intent === 'help') {
+            return 'Puedo ayudarte con productos, precios, stock, cómo comprar, formas de pago o el estado de tu pedido. ¿Buscas algo del catálogo o un regalo para alguien?';
         }
 
         if ($intent === 'account') {
