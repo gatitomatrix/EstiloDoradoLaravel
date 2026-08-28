@@ -9,7 +9,7 @@ return [
     | - ollama: local http://127.0.0.1:11434
     | - gemini: API Google (producción o free tier)
     */
-    'driver' => env('LLM_DRIVER', 'ollama'),
+    'driver' => env('LLM_DRIVER', 'gemini'),
 
     'ollama' => [
         'base_url' => rtrim(env('OLLAMA_URL', 'http://127.0.0.1:11434'), '/'),

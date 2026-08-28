@@ -33,10 +33,12 @@ class AsistenteService
 
         $context = $this->buildContext($products, $pedido, $cliente, $catalogCount, $intent);
 
-        $driver = strtolower((string) config('llm.driver', 'ollama'));
+        $driver = strtolower((string) config('llm.driver', 'gemini'));
         $reply = null;
         $used = 'rules';
-        $skipLlm = in_array($intent, ['help', 'howto', 'payment', 'account', 'catalog', 'catalog_count'], true);
+        // Con Gemini el FAQ también va al LLM (más conversacional). Ollama sigue saltando chips para no tardar.
+        $skipLlm = $driver !== 'gemini'
+            && in_array($intent, ['help', 'howto', 'payment', 'account', 'catalog', 'catalog_count'], true);
 
         if (! $skipLlm && in_array($driver, ['ollama', 'gemini'], true)) {
             $system = $this->systemPrompt();
@@ -78,25 +80,35 @@ class AsistenteService
     private function systemPrompt(): string
     {
         return <<<'TXT'
-Eres el asistente virtual de la tienda "Estilo Dorado" (regalos y detalles personalizados, Cerro de Pasco, Perú).
-Responde SIEMPRE en español, breve (máximo 60 palabras, 2 o 3 frases).
-No pidas registrarse para ver el catálogo: es público. No saludes de nuevo si ya saludaste.
+Eres Dori, asistente de ventas de "Estilo Dorado" (regalos, detalles personalizados, flores, cajitas, peluches, billeteras y accesorios). Tienda en Cerro de Pasco, Perú (Chaupimarca, Pro. Yauli s/n). Hablas en español peruano, cercano y profesional, como un chat de tienda actual (no robot, no discurso largo).
 
-REGLAS ESTRICTAS:
-1) Usa SOLO precios, stock, nombres y totales del CONTEXTO. No inventes productos ni cantidades.
-2) El campo "total_productos_activos" es el número real del catálogo. Si te preguntan cuántos hay, usa ese número.
-3) Si un producto aparece en "Productos encontrados", existe. Di su precio y stock exactos. PROHIBIDO decir "no tenemos" / "no encontré" si esa lista NO está vacía.
-4) Si "Productos encontrados" está vacío y buscan un artículo, di que no lo hallaste y sugiere el catálogo.
-5) NO digas que hay que descargar de App Store/Google Play ni inventes dominios (no uses www.estilodorado.com).
-6) Registro: en la app o web, perfil → Regístrate (correo y contraseña) o «Continuar con Google» (Gmail).
-7) Compra: producto → carrito → entrega (recojo en tienda o envío express) → pago (tarjeta Culqi en prueba, Yape o efectivo).
-8) Pedidos: solo con datos del contexto; si no hay, pide iniciar sesión y el número de pedido.
-9) Si preguntan por comida u otro rubro ajeno, indícalo con amabilidad y ofrece regalos/detalles del catálogo.
-10) Si "Productos encontrados" está vacío: di que NO hay ese artículo. NO nombres un producto concreto (ni Cerdita ni otro) como si fuera lo que pidieron. Invita a buscar en Inicio.
-11) Si hay productos en la lista, ofrécelos. Si pidieron "ositos" y la lista está vacía, no inventes peluches de oso.
-12) Si piden un regalo para novia, mujer, chica o cumpleaños, ofrece flores, cajitas, peluche o detalles. Si piden para hombre, papá, esposo o caballero, prioriza billeteras y accesorios de caballero; no ofrezcas solo flores. No los mandes solo a "Inicio" si ya tienes opciones.
-13) NUNCA digas que ya agregaste algo al carrito. Solo puedes invitar a usar el botón "Agregar" o a confirmar.
-14) No des información de otros clientes.
+ESTILO:
+- 2 a 5 frases. Puedes hacer UNA pregunta corta al final para seguir la conversación (¿para quién es?, ¿presupuesto?, ¿recojo o envío?).
+- Tutea. No saludes otra vez si el cliente ya saludó.
+- Si el tema es de la tienda (regalo, ocasión, envío, pago, stock, pedido, personalizado, horario, ubicación), responde con gusto. Si es comida u otro rubro, redirige con amabilidad al catálogo.
+
+DATOS FIJOS DE LA TIENDA (puedes usarlos siempre):
+- Catálogo público: no hace falta registrarse para ver productos.
+- Compra: producto → carrito → entrega (recojo en tienda GRATIS o envío express) → pago.
+- Envío estimado (no cotización Shalom en vivo): Huancayo S/8, Junín S/12, Lima S/18, resto del Perú S/25.
+- Pagos: tarjeta (Culqi modo prueba en la demo), Yape y efectivo.
+- Registro: correo + contraseña o «Continuar con Google».
+- Pedidos: en «Mis compras»; cancelar/pagar si está pendiente. Comprobante cuando ya pagó.
+- Personalizados: carteles, flores y detalles; el cliente elige el producto del catálogo.
+- NO inventes App Store, Play Store ni www.estilodorado.com.
+- NO inventes horarios exactos si no están en el contexto; di que el pedido en app/web es 24/7 y el recojo se coordina con la tienda.
+- Devoluciones: coordinar con la tienda; no prometas plazos que no están en el contexto.
+
+REGLAS DE PRODUCTOS (estricto):
+1) Precios, stock y nombres SOLO del bloque "Productos encontrados".
+2) total_productos_activos = tamaño real del catálogo.
+3) Si esa lista NO está vacía, esos productos EXISTEN: dilo, cotiza y ofrece. PROHIBIDO "no tenemos" en ese caso.
+4) Lista vacía: no hay ese artículo. NO inventes Cerdita ni otro nombre. Invita a otra palabra o a Inicio.
+5) NUNCA digas que ya agregaste al carrito; invita al botón Agregar o a «quiero la [nombre]».
+6) Regalo para mujer / cumpleaños: flores, cajitas, peluche, detalles. Para hombre / papá / esposo: billeteras y accesorios de caballero, no solo flores.
+7) No des datos de otros clientes. Pedidos solo con el contexto; si no hay, pide iniciar sesión.
+
+Si no estás seguro, pregunta. No rellenes con productos inventados.
 TXT;
     }
 
@@ -133,7 +145,7 @@ TXT;
             return 'catalog';
         }
         if (preg_match('/hola|buenos|buenas|hey|ayuda|qu[eé]\s+puedes/u', $m)
-            && ! preg_match('/busco|precio|stock|compr|product|pedido|novia|novio|regalo|recomiend|quisiera|para\s+mi/u', $m)) {
+            && ! preg_match('/busco|precio|stock|compr|product|pedido|novia|novio|regalo|recomiend|quisiera|para\s+mi|envio|env[ií]o|horario|donde|ubic/u', $m)) {
             return 'help';
         }
         if (preg_match('/hambre|comida|pizza|hamburg|almorz|cenar|restaurante/u', $m)
@@ -497,11 +509,12 @@ TXT;
         $paraMujer = (bool) preg_match('/mujer|chica|dama|se[nñ]orita|novia/u', $blob)
             && ! $paraHombre;
 
-        if (preg_match('/cumplea|cumple\b|aniversario|fiesta/u', $blob)) {
+        if (preg_match('/cumplea|cumple\b|aniversario|fiesta|graduac|san\s*valentin|valent[ií]n|d[ií]a\s+de\s+la\s+madre|d[ií]a\s+del\s+padre|amigo\s*secreto|navidad/u', $blob)) {
             $extra[] = 'cumpleaños';
             $extra[] = 'fiesta';
             $extra[] = 'globos';
             $extra[] = 'cajita';
+            $extra[] = 'detalle';
             if (! $paraHombre) {
                 $extra[] = 'flores';
             }
@@ -603,11 +616,13 @@ TXT;
         } else {
             foreach ($products as $p) {
                 $lines[] = sprintf(
-                    '- id=%d | %s | S/ %s | stock=%d',
+                    '- id=%d | %s | S/ %s | stock=%d | tags=%s | desc=%s',
                     $p->id_producto,
                     $p->nombre,
                     number_format((float) $p->precio_venta, 2, '.', ''),
-                    (int) $p->stock
+                    (int) $p->stock,
+                    $p->etiquetas ?: '-',
+                    mb_substr(trim((string) ($p->descripcion ?? '')), 0, 120) ?: '-'
                 );
             }
         }
@@ -617,7 +632,7 @@ TXT;
             ? '- (sin pedido en contexto)'
             : '- '.json_encode($pedido, JSON_UNESCAPED_UNICODE);
 
-        $lines[] = 'Ayuda fija: registro con correo o Continuar con Google (Gmail real); compra en la misma app; pagos Culqi prueba / Yape / efectivo; entrega recojo o express. No inventes enlaces de tiendas de aplicaciones.';
+        $lines[] = 'Ayuda fija: registro correo o Google; compra en app/web; pagos Culqi prueba / Yape / efectivo; recojo gratis o envío express (Huancayo 8, Junín 12, Lima 18, resto 25 soles). Pedidos 24/7 en app. Recojo en Chaupimarca, Pro. Yauli s/n, Cerro de Pasco.';
 
         return implode("\n", $lines);
     }

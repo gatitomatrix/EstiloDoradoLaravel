@@ -35,8 +35,8 @@ class GeminiClient
                         ],
                     ],
                     'generationConfig' => [
-                        'temperature' => 0.3,
-                        'maxOutputTokens' => 512,
+                        'temperature' => 0.55,
+                        'maxOutputTokens' => 700,
                     ],
                 ]);
 
