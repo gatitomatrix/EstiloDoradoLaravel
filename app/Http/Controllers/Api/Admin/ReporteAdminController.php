@@ -163,7 +163,10 @@ class ReporteAdminController extends Controller
             ['Monto cancelado (S/)', $data['kpis']['monto_cancelado']],
         ];
         foreach ($data['por_pago'] as $p) {
-            $rows[] = ['Pago: '.$p['metodo'], $p['total']];
+            $rows[] = ['Pago: '.$p['metodo'].' ('.$p['pedidos'].' pedidos)', $p['total']];
+        }
+        foreach ($data['por_dia'] as $d) {
+            $rows[] = ['Día '.$d['fecha'].' ('.$d['pedidos'].' pedidos)', $d['total']];
         }
         foreach ($data['top_productos'] as $p) {
             $rows[] = ['Top: '.$p['nombre'].' (und. '.$p['unidades'].')', $p['importe']];
@@ -172,6 +175,39 @@ class ReporteAdminController extends Controller
         return $this->export->download(
             'reporte_financiero',
             'Reporte financiero — Estilo Dorado',
+            $headers,
+            $rows,
+            $ext
+        );
+    }
+
+    /** Productos con stock ≤ umbral (default 10), para reposición. */
+    public function stockBajo(string $ext, Request $request)
+    {
+        $threshold = (int) $request->query('threshold', 10);
+        if ($threshold < 1 || $threshold > 100) {
+            $threshold = 10;
+        }
+
+        $headers = ['ID', 'Nombre', 'Stock', 'Precio venta', 'Estado', 'Categoría'];
+        $rows = Producto::query()
+            ->with('categoria:id_categoria,nombre')
+            ->where('stock', '<=', $threshold)
+            ->orderBy('stock')
+            ->get()
+            ->map(fn ($p) => [
+                $p->id_producto,
+                $p->nombre,
+                $p->stock,
+                $p->precio_venta,
+                $p->estado,
+                $p->categoria?->nombre ?? '',
+            ])
+            ->all();
+
+        return $this->export->download(
+            'reporte_stock_bajo',
+            'Stock bajo (≤ '.$threshold.') — Estilo Dorado',
             $headers,
             $rows,
             $ext
