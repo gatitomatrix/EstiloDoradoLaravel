@@ -13,7 +13,7 @@ class WhatsappEscalation
 
         $rules = [
             'humano' => '/p[aá]same con|hablar con (la |el )?(due[nñ]a|gerente|asesor|persona)|con marlene|agente humano|persona real|quiero un (asesor|humano)/u',
-            'reclamo' => '/reclamo|queja|quejarme|me quejo|tengo una queja|inconform|molestia|aplastad|machucad|abollad|mojad|humedec|malograd|quebr[ao]|da[nñ]ad|no era lo que|producto incorrecto|me lleg[oó].{0,25}(mal|roto|aplast|machuc|aboll|mojad|tarde|sucio|abierto)|lleg[oó].{0,20}(aplast|roto|machuc)|no me lleg[oó]/u',
+            'reclamo' => '/reclamo|queja|quejarme|me quejo|tengo una queja|inconform|molestia|(mi|el) producto lleg|empapad|aplastad|machucad|abollad|mojad|humedec|malograd|quebr[ao]|da[nñ]ad|no era lo que|producto incorrecto|me lleg[oó].{0,25}(mal|roto|aplast|machuc|aboll|mojad|empap|tarde|sucio|abierto)|lleg[oó].{0,20}(aplast|roto|machuc|empap)|no me lleg[oó]/u',
             'devolucion' => '/devoluci[oó]n|devolverlo|quiero cambiar(lo)? el producto|cambio (del|de) producto/u',
             'cobro' => '/cobr(aron|ado|aste).{0,24}(de\s*m[aá]s|demas|dem[aá]s|dos veces|doble)|doble cargo|me descontaron (de m[aá]s|dos)|cobro (de m[aá]s|demas|incorrecto)|me (han )?cobrado de/u',
             'comprobante' => '/anular (boleta|factura)|cambiar (el )?ruc|raz[oó]n social|comprobante mal|factura mal emitida/u',
