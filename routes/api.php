@@ -24,6 +24,7 @@ use App\Http\Controllers\Api\Admin\InventarioAdminController;
 use App\Http\Controllers\Api\Admin\ClienteAdminController;
 use App\Http\Controllers\Api\Admin\ReporteAdminController;
 use App\Http\Controllers\Api\Admin\AuditoriaAdminController;
+use App\Http\Controllers\Api\Admin\AsistenteAdminController;
 
 use App\Http\Controllers\Api\PagoCulqiController;
 use App\Http\Controllers\Api\FeController;
@@ -195,6 +196,7 @@ Route::prefix('admin')->middleware(['auth:sanctum','abilities:admin'])->group(fu
         Route::get('reportes/top-productos.{ext}', [ReporteAdminController::class, 'topProductos'])->where('ext', 'xlsx|csv|pdf');
         Route::get('reportes/stock-bajo.{ext}',  [ReporteAdminController::class, 'stockBajo'])->where('ext', 'xlsx|csv|pdf');
         Route::get('auditoria',                  [AuditoriaAdminController::class, 'index']);
+        Route::get('asistente-logs',             [AsistenteAdminController::class, 'index']);
     });
 
         // Route::get('events/stream', [AdminEventsController::class, 'stream']);

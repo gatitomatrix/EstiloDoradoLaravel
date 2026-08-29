@@ -7,6 +7,8 @@ use App\Models\Cliente;
 use App\Services\Asistente\AsistenteService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Laravel\Sanctum\PersonalAccessToken;
 
 class AsistenteController extends Controller
@@ -29,6 +31,8 @@ class AsistenteController extends Controller
         try {
             $offered = array_values(array_map('intval', $data['offered_ids'] ?? []));
             $result = $asistente->handle($data['message'], $cliente, $offered);
+
+            $this->logConsulta($data['message'], $result);
 
             return response()->json([
                 'success' => true,
@@ -70,5 +74,32 @@ class AsistenteController extends Controller
         $tokenable = $access?->tokenable;
 
         return $tokenable instanceof Cliente ? $tokenable : null;
+    }
+
+    /** No corta el chat si falla. Omite saludos/gracias. */
+    private function logConsulta(string $message, array $result): void
+    {
+        try {
+            if (! Schema::hasTable('asistente_logs')) {
+                return;
+            }
+            $m = mb_strtolower(trim($message));
+            if (preg_match('/^(hola|buenos\s*d[ií]as|buenas|gracias|genial|ok+|listo|chau|adi[oó]s)[\s!¡.]*$/u', $m)) {
+                return;
+            }
+            $n = is_array($result['products'] ?? null) ? count($result['products']) : 0;
+            $wa = ! empty($result['action']);
+            $tipo = $wa ? 'whatsapp' : ($n > 0 ? 'catalogo' : 'sin_producto');
+            DB::table('asistente_logs')->insert([
+                'mensaje' => mb_substr($message, 0, 500),
+                'tipo' => $tipo,
+                'n_productos' => min($n, 99),
+                'whatsapp' => $wa ? 1 : 0,
+                'driver' => is_string($result['driver'] ?? null) ? substr($result['driver'], 0, 16) : null,
+                'created_at' => now(),
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('[asistente-log] '.$e->getMessage());
+        }
     }
 }
