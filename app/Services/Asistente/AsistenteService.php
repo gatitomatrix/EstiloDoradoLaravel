@@ -186,6 +186,11 @@ TXT;
         if ($cortesia) {
             return 'courtesy';
         }
+        $elogio = (bool) preg_match('/gracias|bonit|lind[oaos]|hermos[oa]|me gusta|est[aá]n\s+(bonit|lind)|qu[eé]\s+lind|bac[aá]n|ch[eé]vere|genial|perfecto/u', $m);
+        $pideAlgo = (bool) preg_match('/busco|tienen|hay\s|precio|cuesta|stock|reclamo|queja|agrega|cerdit|cajit|flores|cu[aá]nto|quiero\s+(la|el|una|ese|esa)|producto lleg/u', $m);
+        if ($elogio && ! $pideAlgo && mb_strlen($m) < 90) {
+            return 'courtesy';
+        }
         if (preg_match('/hambre|comida|pizza|hamburg|almorz|cenar|restaurante/u', $m)
             && ! preg_match('/busco|cerdit|cajit|regalo|flores/u', $m)) {
             return 'offtopic';
