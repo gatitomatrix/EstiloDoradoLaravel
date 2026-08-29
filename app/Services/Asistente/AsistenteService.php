@@ -152,6 +152,9 @@ TXT;
             return 'add_to_cart';
         }
 
+        if (preg_match('/cumplea|cumple\b|recomend|regalo|regalar|aniversario|para\s+(una?\s+)?(mujer|chica|dama|se[nñ]orita)|novia|hermana/u', $m)) {
+            return 'product';
+        }
         if (preg_match('/registr|cuenta|usuario|crear\s*cuenta|sign\s*up|login|iniciar\s*sesi/u', $m)) {
             return 'account';
         }
@@ -187,7 +190,7 @@ TXT;
             && ! preg_match('/busco|cerdit|cajit|regalo|flores/u', $m)) {
             return 'offtopic';
         }
-        if (preg_match('/busco|precio|cuesta|stock|tienen|hay\s|quiero|cerdit|cajit|flores|billetera|hot\s*wheels|personaliz/u', $m)) {
+        if (preg_match('/busco|precio|cuesta|stock|tienen|hay\s|quiero|cerdit|cajit|flores|billetera|hot\s*wheels|personaliz|recomend|regalo|cumple/u', $m)) {
             return 'product';
         }
         if (preg_match('/busco|cerdit|product/u', $m) && preg_match('/compr|pago|yape/u', $m)) {
@@ -532,7 +535,7 @@ TXT;
                 $extra[] = 'cartera';
             }
             if (str_contains($t, 'novia') || str_contains($t, 'novio') || str_contains($t, 'pareja')
-                || str_contains($t, 'enamorad') || str_contains($t, 'recomiend') || str_contains($t, 'suger')
+                || str_contains($t, 'enamorad') || str_contains($t, 'recomiend') || str_contains($t, 'recomend') || str_contains($t, 'suger')
                 || str_contains($t, 'regalo') || str_contains($t, 'regalar')) {
                 $extra[] = 'detalle';
             }
