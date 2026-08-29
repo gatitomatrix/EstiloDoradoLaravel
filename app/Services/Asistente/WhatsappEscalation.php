@@ -15,7 +15,7 @@ class WhatsappEscalation
             'humano' => '/p[aá]same con|hablar con (la |el )?(due[nñ]a|gerente|asesor|persona)|con marlene|agente humano|persona real|quiero un (asesor|humano)/u',
             'reclamo' => '/reclamo|me lleg[oó] roto|quebr[ao]|da[nñ]ad|no era lo que|producto incorrecto|me lleg[oó] mal|est[aá] malogrado/u',
             'devolucion' => '/devoluci[oó]n|devolverlo|quiero cambiar(lo)? el producto|cambio (del|de) producto/u',
-            'cobro' => '/cobraron dos|doble cargo|me descontaron dos|me cobraron de m[aá]s|me cobraron dos veces/u',
+            'cobro' => '/cobr(aron|ado|aste).{0,24}(de\s*m[aá]s|demas|dem[aá]s|dos veces|doble)|doble cargo|me descontaron (de m[aá]s|dos)|cobro (de m[aá]s|demas|incorrecto)|me (han )?cobrado de/u',
             'comprobante' => '/anular (boleta|factura)|cambiar (el )?ruc|raz[oó]n social|comprobante mal|factura mal emitida/u',
             'mayoreo' => '/mayoreo|por mayor|descuento por (cantidad|lote)|precio especial|cincuenta cajas|\b\d{2,}\s*cajas/u',
             'medida' => '/a medida|con esta foto|este texto exacto|logo de mi (empresa|negocio)|dise[nñ]o (m[ií]o|propio)/u',
