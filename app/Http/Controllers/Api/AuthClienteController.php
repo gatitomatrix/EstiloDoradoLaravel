@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Http;
 use App\Mail\WelcomeMail;
+use App\Mail\PasswordChangedMail;
 
 class AuthClienteController extends Controller
 {
@@ -213,6 +214,12 @@ class AuthClienteController extends Controller
         $cliente->contrasena = Hash::make($data['contrasena']);
         $cliente->save();
 
+        try {
+            Mail::to($cliente->email)->send(new PasswordChangedMail($cliente));
+        } catch (\Throwable $e) {
+            Log::warning('[resetSimple] mail: '.$e->getMessage());
+        }
+
         return response()->json(['message' => 'Contraseña actualizada'], 200);
     }
 
@@ -235,6 +242,12 @@ class AuthClienteController extends Controller
 
         $c->contrasena = Hash::make($data['password']);
         $c->save();
+
+        try {
+            Mail::to($c->email)->send(new PasswordChangedMail($c));
+        } catch (\Throwable $e) {
+            Log::warning('[updatePassword] mail: '.$e->getMessage());
+        }
 
         return response()->json(['message' => 'Contraseña actualizada'], 200);
     }
