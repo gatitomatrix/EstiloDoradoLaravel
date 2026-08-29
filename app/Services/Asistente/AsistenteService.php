@@ -24,6 +24,17 @@ class AsistenteService
             return $this->handleAddToCart($message, $offeredIds);
         }
 
+        if ($intent === 'courtesy') {
+            return [
+                'reply' => '¡Con gusto! Si se te ocurre otro regalo o producto, aquí estoy.',
+                'driver' => 'rules',
+                'products' => [],
+                'pedido' => null,
+                'suggestions' => [],
+                'action' => null,
+            ];
+        }
+
         $esc = $this->whatsapp->match($message);
         if ($esc) {
             $pedido = $this->findPedido($message, $cliente);
@@ -164,6 +175,13 @@ TXT;
         $soloSaludo = (bool) preg_match('/^(hola|buenos\s*d[ií]as|buenas(?:\s*tardes|\s*noches)?|hey|ayuda|qu[eé]\s+puedes\s+hacer)[\s!¡.?]*$/u', $m);
         if ($soloSaludo) {
             return 'help';
+        }
+        $cortesia = (bool) preg_match(
+            '/^(ok+|okay|vale|listo|dale|va|perfecto|excelente|genial|buenísimo|buenisimo|entendido|de\s+acuerdo|gracias|muchas\s+gracias|mil\s+gracias|thank(s|\s*you)?|ty|chau|adi[oó]s|bye|nos\s+vemos|muy\s+amable|todo\s+bien)([\s,!.¡¿]*(gracias|genial|ok+|vale|listo))*[\s!¡.]*$/u',
+            $m
+        );
+        if ($cortesia) {
+            return 'courtesy';
         }
         if (preg_match('/hambre|comida|pizza|hamburg|almorz|cenar|restaurante/u', $m)
             && ! preg_match('/busco|cerdit|cajit|regalo|flores/u', $m)) {
@@ -664,6 +682,9 @@ TXT;
     ): string {
         if ($intent === 'help') {
             return 'Puedo ayudarte con productos, precios, stock, cómo comprar, formas de pago o el estado de tu pedido. ¿Buscas algo del catálogo o un regalo para alguien?';
+        }
+        if ($intent === 'courtesy') {
+            return '¡Con gusto! Si se te ocurre otro regalo o producto, aquí estoy.';
         }
 
         if ($intent === 'account') {
