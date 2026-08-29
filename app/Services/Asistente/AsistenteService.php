@@ -186,8 +186,8 @@ TXT;
         if ($cortesia) {
             return 'courtesy';
         }
-        $elogio = (bool) preg_match('/gracias|bonit|lind[oaos]|hermos[oa]|me gusta|est[aá]n\s+(bonit|lind)|qu[eé]\s+lind|bac[aá]n|ch[eé]vere|genial|perfecto/u', $m);
-        $pideAlgo = (bool) preg_match('/busco|tienen|hay\s|precio|cuesta|stock|reclamo|queja|agrega|cerdit|cajit|flores|cu[aá]nto|quiero\s+(la|el|una|ese|esa)|producto lleg/u', $m);
+        $elogio = (bool) preg_match('/gracias|bonit|precios[oaos]|lind[oaos]|hermos[oa]|encant|divin[oa]|me gusta|me encanta|est[aá]n\s+(bonit|lind|precios|hermos)|qu[eé]\s+(lind|bonit|precios)|bac[aá]n|ch[eé]vere|genial|perfecto/u', $m);
+        $pideAlgo = (bool) preg_match('/busco|tienen|hay\s|\bprecio\b|cuesta|\bstock\b|reclamo|queja|agrega|cerdit|cajit|flores|cu[aá]nto|quiero\s+(la|el|una|ese|esa)|producto lleg/u', $m);
         if ($elogio && ! $pideAlgo && mb_strlen($m) < 90) {
             return 'courtesy';
         }
@@ -716,6 +716,9 @@ TXT;
                 return 'No tenemos peluches de oso / ositos en el catálogo. En Inicio puedes ver otros peluches o detalles (por nombre, no como osos). ¿Buscas otra cosa, por ejemplo cerdita o cajita?';
             }
 
+            if (preg_match('/gracias|bonit|precios|lind[oa]|hermos|encant|divin/u', mb_strtolower($message))) {
+                return '¡Con gusto! Si se te ocurre otro regalo o producto, aquí estoy.';
+            }
             return 'No encontré un producto con ese nombre en el catálogo. Prueba con otra palabra (ej. «cerdita», «cajita», «flores») o revisa Inicio.';
         }
 
