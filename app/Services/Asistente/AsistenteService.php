@@ -12,6 +12,7 @@ class AsistenteService
     public function __construct(
         private OllamaClient $ollama,
         private GeminiClient $gemini,
+        private WhatsappEscalation $whatsapp,
     ) {}
 
     public function handle(string $message, ?Cliente $cliente = null, array $offeredIds = []): array
@@ -21,6 +22,21 @@ class AsistenteService
 
         if ($intent === 'add_to_cart') {
             return $this->handleAddToCart($message, $offeredIds);
+        }
+
+        $esc = $this->whatsapp->match($message);
+        if ($esc) {
+            $pedido = $this->findPedido($message, $cliente);
+            $pid = is_array($pedido) ? ($pedido['id_pedido'] ?? null) : null;
+
+            return [
+                'reply' => $this->whatsapp->reply($esc),
+                'driver' => 'rules',
+                'products' => [],
+                'pedido' => $pedido,
+                'suggestions' => [],
+                'action' => $this->whatsapp->action($message, $pid ? (int) $pid : null),
+            ];
         }
 
         $products = $this->findProducts($message, $intent);

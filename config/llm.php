@@ -25,4 +25,9 @@ return [
 
     /** Si el LLM falla, usar reglas automáticamente */
     'fallback_rules' => filter_var(env('LLM_FALLBACK_RULES', true), FILTER_VALIDATE_BOOL),
+
+    /** WhatsApp de la tienda (wa.me). 51 + 9 dígitos, o solo 9xxxxxxxx */
+    'whatsapp' => [
+        'number' => env('WHATSAPP_NUMBER', ''),
+    ],
 ];
