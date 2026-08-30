@@ -58,7 +58,7 @@ class AsistenteService
             })
             ->count();
 
-        $context = $this->buildContext($products, $pedido, $cliente, $catalogCount, $intent);
+        $context = $this->buildContext($products, $pedido, $cliente, $catalogCount, $intent, $message);
 
         $driver = strtolower((string) config('llm.driver', 'gemini'));
         $reply = null;
@@ -134,7 +134,9 @@ REGLAS DE PRODUCTOS (estricto):
 4) Lista vacía: no hay ese artículo. NO inventes Cerdita ni otro nombre. Invita a otra palabra o a Inicio.
 5) NUNCA digas que ya agregaste al carrito; invita al botón Agregar o a «quiero la [nombre]».
 6) Regalo para mujer / cumpleaños: flores, cajitas, peluche, detalles. Para hombre / papá / esposo: billeteras y accesorios de caballero, no solo flores.
-7) No des datos de otros clientes. Pedidos solo con el contexto; si no hay, pide iniciar sesión.
+7) EDAD Y GÉNERO del DESTINATARIO (no del comprador). Si el contexto trae destinatario_regalo, prioriza ESA lista: un niño ~10 no es lo mismo que alguien de 50-60. No ofrezcas billetera de caballero a un niño ni peluche infantil como primera opción a un adulto mayor.
+8) Si destinatario_regalo dice edad o género "no indicada", pregunta UNA vez: «¿Es para hombre o mujer, y más o menos qué edad: 10, 20, 30, 40, 50 o 60?»
+9) No des datos de otros clientes. Pedidos solo con el contexto; si no hay, pide iniciar sesión.
 
 Si no estás seguro, pregunta. No rellenes con productos inventados.
 TXT;
@@ -405,6 +407,8 @@ TXT;
             ->limit(50)
             ->get();
 
+        $seg = (new AudienceSegment)->parse($message);
+
         foreach ($candidates as $p) {
             $name = mb_strtolower((string) $p->nombre);
             $tags = mb_strtolower((string) ($p->etiquetas ?? ''));
@@ -452,6 +456,20 @@ TXT;
             if ($wantsPlush && preg_match('/bolso|mochila|piton|pitón|cuero/u', $name.' '.$desc)) {
                 $score -= 15;
             }
+            foreach ($seg->boostTags() as $bt) {
+                if ($bt !== '' && (str_contains($tags, $bt) || str_contains($hay, $bt))) {
+                    $score += 14;
+                }
+            }
+            if ($seg->edad === 10 && preg_match('/billetera|caballero|perfume|militar/u', $hay) && ! preg_match('/infantil|nino|niño|edad:10/u', $hay)) {
+                $score -= 20;
+            }
+            if ($seg->edad !== null && $seg->edad >= 50 && preg_match('/stich|hot wheels|infantil|cerdita|edad:10/u', $hay) && ! preg_match('/edad:50|edad:60|mayor|adulto/u', $hay)) {
+                $score -= 16;
+            }
+            if ($seg->genero === 'hombre' && $seg->edad !== 10 && preg_match('/\bflores\b/u', $hay) && ! str_contains($tags, 'caballero')) {
+                $score -= 8;
+            }
             if ($score > 0) {
                 $scored[] = ['p' => $p, 's' => $score + min(3, (int) $p->stock / 10)];
             }
@@ -483,6 +501,7 @@ TXT;
             'hambre', 'comida', 'cosas', 'preguntarte', 'puedes', 'puede', 'hacer',
             'tienes', 'tenéis', 'tendre', 'tendré', 'algun', 'algún', 'algunos', 'algunas',
             'vendes', 'venden', 'sale', 'salen', 'quisiera', 'gustaria', 'gustaría', 'para',
+            'años', 'ano', 'edad', 'regalo', 'regalar',
         ];
 
         foreach ($stop as $w) {
@@ -577,6 +596,9 @@ TXT;
             $extra[] = 'militar';
         }
 
+        $seg = (new AudienceSegment)->parse($message);
+        $extra = array_merge($extra, $seg->extraTokens());
+
         return array_values(array_unique(array_merge($tokens, $extra)));
     }
 
@@ -645,9 +667,17 @@ TXT;
         ?Cliente $cliente,
         int $catalogCount,
         string $intent,
+        string $message = '',
     ): string {
         $lines = [];
         $lines[] = 'intent_detectado: '.$intent;
+        $seg = (new AudienceSegment)->parse($message);
+        $lines[] = 'destinatario_regalo: '.$seg->label();
+        $prio = $seg->boostTags();
+        $lines[] = 'prioridad_tags: '.($prio === [] ? '-' : implode(', ', $prio));
+        if ($seg->shouldAsk() && in_array($intent, ['product', 'mixed', 'catalog'], true)) {
+            $lines[] = 'Si faltan género o edad del DESTINATARIO, pregunta UNA vez: ¿es para hombre o mujer, y más o menos 10, 20, 30, 40, 50 o 60 años?';
+        }
         $lines[] = 'total_productos_activos: '.$catalogCount;
         $lines[] = 'Cliente: '.($cliente
             ? trim($cliente->nombre.' '.($cliente->apellido ?? '')).' (id '.$cliente->id_cliente.')'
