@@ -15,9 +15,15 @@ class AsistenteService
         private WhatsappEscalation $whatsapp,
     ) {}
 
-    public function handle(string $message, ?Cliente $cliente = null, array $offeredIds = []): array
+    public function handle(string $message, ?Cliente $cliente = null, array $offeredIds = [], ?string $awaiting = null): array
     {
         $message = trim($message);
+        $awaiting = is_string($awaiting) ? trim($awaiting) : '';
+
+        if ($awaiting === 'complaint_detail') {
+            return $this->resolveComplaintDetail($message, $cliente);
+        }
+
         $intent = $this->detectIntent($message, $offeredIds !== []);
 
         if ($intent === 'add_to_cart') {
@@ -35,6 +41,20 @@ class AsistenteService
             ];
         }
 
+        if ($this->whatsapp->isVagueComplaint($message)) {
+            return [
+                'reply' => $this->whatsapp->askComplaintDetail(),
+                'driver' => 'rules',
+                'products' => [],
+                'pedido' => null,
+                'suggestions' => [],
+                'action' => null,
+                'awaiting' => 'complaint_detail',
+                'log_tipo' => 'queja_espera',
+                'urgencia' => false,
+            ];
+        }
+
         $esc = $this->whatsapp->match($message);
         if ($esc) {
             $pedido = $this->findPedido($message, $cliente);
@@ -47,6 +67,10 @@ class AsistenteService
                 'pedido' => $pedido,
                 'suggestions' => [],
                 'action' => $this->whatsapp->action($message, $pid ? (int) $pid : null),
+                'awaiting' => null,
+                'log_tipo' => 'whatsapp',
+                'queja_tipo' => $this->whatsapp->classifyQueja($message) ?: $esc,
+                'urgencia' => true,
             ];
         }
 
@@ -101,6 +125,41 @@ class AsistenteService
             'pedido' => $pedido,
             'suggestions' => $this->suggestions($cliente !== null),
             'action' => null,
+            'awaiting' => null,
+        ];
+    }
+
+    private function resolveComplaintDetail(string $message, ?Cliente $cliente): array
+    {
+        if ($this->whatsapp->isVagueComplaint($message) && mb_strlen(trim($message)) < 32) {
+            return [
+                'reply' => $this->whatsapp->askComplaintDetail(),
+                'driver' => 'rules',
+                'products' => [],
+                'pedido' => null,
+                'suggestions' => [],
+                'action' => null,
+                'awaiting' => 'complaint_detail',
+                'log_tipo' => 'queja_espera',
+                'urgencia' => false,
+            ];
+        }
+
+        $tipo = $this->whatsapp->classifyQueja($message) ?? 'otro';
+        $pedido = $this->findPedido($message, $cliente);
+        $pid = is_array($pedido) ? ($pedido['id_pedido'] ?? null) : null;
+
+        return [
+            'reply' => $this->whatsapp->replyQueja($tipo),
+            'driver' => 'rules',
+            'products' => [],
+            'pedido' => $pedido,
+            'suggestions' => [],
+            'action' => $this->whatsapp->action($message, $pid ? (int) $pid : null),
+            'awaiting' => null,
+            'log_tipo' => 'whatsapp',
+            'queja_tipo' => $tipo,
+            'urgencia' => true,
         ];
     }
 

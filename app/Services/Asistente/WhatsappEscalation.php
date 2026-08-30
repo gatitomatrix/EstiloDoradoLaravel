@@ -47,6 +47,80 @@ class WhatsappEscalation
         return null;
     }
 
+    /** "tengo una queja" sin decir qué pasó. */
+    public function isVagueComplaint(string $message): bool
+    {
+        $m = mb_strtolower(trim($message));
+        $vague = (bool) preg_match('/queja|reclamo|quejarme|me quejo|inconform|molestia/u', $m);
+        if (! $vague) {
+            return false;
+        }
+        if (preg_match('/aplast|empap|machuc|aboll|mojad|humed|malograd|quebr|da[nñ]ad|roto|sucio|cobr|demas|no me lleg|no lleg|devoluci|devolver|extravi|tarde|demor/u', $m)) {
+            return false;
+        }
+
+        return true;
+
+    /** Tipo de queja a partir del texto, o null si no se entiende. */
+    public function classifyQueja(string $message): ?string
+    {
+        $m = mb_strtolower($message);
+        if (preg_match('/aplast|empap|machuc|aboll|mojad|humed|malograd|quebr|da[nñ]ad|roto|sucio|abierto|incomplet/u', $m)
+            || preg_match('/(mi|el) producto lleg|me lleg[oó].{0,25}(mal|roto|aplast)/u', $m)) {
+            return 'producto_danado';
+        }
+        if (preg_match('/cobr|demas|de m[aá]s|doble cargo|descontaron/u', $m)) {
+            return 'cobro';
+        }
+        if (preg_match('/no me lleg|no lleg[oó]|no aparece|extravi|perd[ií]d/u', $m)) {
+            return 'no_llego';
+        }
+        if (preg_match('/devoluci|devolver|cambiar(lo)? el producto/u', $m)) {
+            return 'devolucion';
+        }
+        if (preg_match('/tarde|demor/u', $m)) {
+            return 'demora';
+        }
+        if (preg_match('/queja|reclamo|pas[oó] esto|el problema|me pas[oó]/u', $m) && mb_strlen(trim($message)) > 18) {
+            return 'otro';
+        }
+
+        return null;
+    }
+
+    public function quejaLabel(string $tipo): string
+    {
+        return match ($tipo) {
+            'producto_danado' => 'Producto dañado o malogrado',
+            'cobro' => 'Cobro de más o doble cargo',
+            'no_llego' => 'No llegó / extravío',
+            'devolucion' => 'Cambio o devolución',
+            'demora' => 'Demora en la entrega',
+            default => 'Otro / a detallar',
+        };
+    }
+
+    public function replyQueja(string $tipo): string
+    {
+        $cierre = 'Escríbenos por WhatsApp con tu número de pedido (y una foto si aplica) y te atiende alguien de la tienda. Gracias por confiar en Estilo Dorado.';
+        $inicio = match ($tipo) {
+            'producto_danado' => 'Lamento mucho que el producto haya llegado en mal estado. Eso lo vemos en persona, no lo resuelvo yo desde el chat.',
+            'cobro' => 'Entiendo la preocupación por el cobro. Yo no veo tu banco o Yape; con una captura lo revisan rápido.',
+            'no_llego' => 'Siento que no te haya llegado. El rastreo lo confirma la tienda, no el chat.',
+            'devolucion' => 'Los cambios y devoluciones los coordina la tienda; yo no puedo autorizarlos aquí.',
+            'demora' => 'Siento la demora. Los plazos exactos los confirma la tienda.',
+            default => 'Gracias por contarme. Un reclamo así lo ve una persona de la tienda.',
+        };
+
+        return $inicio.' '.$cierre;
+    }
+
+    public function askComplaintDetail(): string
+    {
+        return 'Lamento que hayas tenido un problema. Para derivarte bien, cuéntame qué pasó: ¿el producto llegó dañado, te cobraron de más, no te llegó, quieres devolverlo u otra cosa?';
+    }
+
+
     public function reply(string $key): string
     {
         $cierre = "Escríbenos por WhatsApp con tu número de pedido (y una foto si aplica) y te atiende alguien de la tienda. Gracias por confiar en Estilo Dorado.";

@@ -19,6 +19,7 @@ class AsistenteController extends Controller
             'message' => 'required|string|min:1|max:1000',
             'offered_ids' => 'sometimes|array|max:12',
             'offered_ids.*' => 'integer|min:1',
+            'awaiting' => 'sometimes|nullable|string|max:40',
         ]);
 
         if (function_exists('set_time_limit')) {
@@ -30,7 +31,12 @@ class AsistenteController extends Controller
 
         try {
             $offered = array_values(array_map('intval', $data['offered_ids'] ?? []));
-            $result = $asistente->handle($data['message'], $cliente, $offered);
+            $result = $asistente->handle(
+                $data['message'],
+                $cliente,
+                $offered,
+                $data['awaiting'] ?? null
+            );
 
             $this->logConsulta($data['message'], $result);
 
@@ -42,6 +48,7 @@ class AsistenteController extends Controller
                 'pedido' => $result['pedido'],
                 'suggestions' => $result['suggestions'],
                 'action' => $result['action'],
+                'awaiting' => $result['awaiting'] ?? null,
             ]);
         } catch (\Throwable $e) {
             Log::error('[asistente] '.$e->getMessage());
@@ -88,16 +95,32 @@ class AsistenteController extends Controller
                 return;
             }
             $n = is_array($result['products'] ?? null) ? count($result['products']) : 0;
-            $wa = ! empty($result['action']);
-            $tipo = $wa ? 'whatsapp' : ($n > 0 ? 'catalogo' : 'sin_producto');
-            DB::table('asistente_logs')->insert([
+            $nombres = [];
+            foreach ($result['products'] ?? [] as $p) {
+                if (is_array($p) && ! empty($p['nombre'])) {
+                    $nombres[] = $p['nombre'];
+                }
+            }
+            $wa = ! empty($result['action']) && (($result['action']['type'] ?? '') === 'whatsapp');
+            $tipo = $result['log_tipo'] ?? ($wa ? 'whatsapp' : ($n > 0 ? 'catalogo' : 'sin_producto'));
+            $row = [
                 'mensaje' => mb_substr($message, 0, 500),
                 'tipo' => $tipo,
                 'n_productos' => min($n, 99),
                 'whatsapp' => $wa ? 1 : 0,
                 'driver' => is_string($result['driver'] ?? null) ? substr($result['driver'], 0, 16) : null,
                 'created_at' => now(),
-            ]);
+            ];
+            if (Schema::hasColumn('asistente_logs', 'productos')) {
+                $row['productos'] = $nombres ? mb_substr(implode(', ', $nombres), 0, 500) : null;
+            }
+            if (Schema::hasColumn('asistente_logs', 'queja_tipo')) {
+                $row['queja_tipo'] = isset($result['queja_tipo']) ? substr((string) $result['queja_tipo'], 0, 40) : null;
+            }
+            if (Schema::hasColumn('asistente_logs', 'urgencia')) {
+                $row['urgencia'] = ! empty($result['urgencia']) ? 1 : 0;
+            }
+            DB::table('asistente_logs')->insert($row);
         } catch (\Throwable $e) {
             Log::warning('[asistente-log] '.$e->getMessage());
         }
