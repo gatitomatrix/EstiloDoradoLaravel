@@ -54,7 +54,31 @@ class AsistenteAdminController extends Controller
             ->format('d/m/Y H:i');
         $tipo = (string) ($r->queja_tipo ?? '');
         $r->queja_label = $tipo !== '' ? (new WhatsappEscalation)->quejaLabel($tipo) : null;
+        $r->productos_items = $this->parseProductos($r);
 
         return $r;
+    }
+
+    private function parseProductos(object $r): array
+    {
+        $raw = $r->productos_json ?? null;
+        if (is_string($raw) && str_starts_with(trim($raw), '[')) {
+            $j = json_decode($raw, true);
+            if (is_array($j)) {
+                return array_values(array_filter($j, fn ($x) => is_array($x) && ! empty($x['nombre'])));
+            }
+        }
+        $txt = trim((string) ($r->productos ?? ''));
+        if ($txt === '') {
+            return [];
+        }
+        $out = [];
+        foreach (preg_split('/,\s*/', $txt) ?: [] as $n) {
+            if ($n !== '') {
+                $out[] = ['id' => 0, 'nombre' => $n];
+            }
+        }
+
+        return $out;
     }
 }

@@ -96,10 +96,19 @@ class AsistenteController extends Controller
             }
             $n = is_array($result['products'] ?? null) ? count($result['products']) : 0;
             $nombres = [];
+            $cards = [];
             foreach ($result['products'] ?? [] as $p) {
-                if (is_array($p) && ! empty($p['nombre'])) {
-                    $nombres[] = $p['nombre'];
+                if (! is_array($p) || empty($p['nombre'])) {
+                    continue;
                 }
+                $nombres[] = $p['nombre'];
+                $cards[] = [
+                    'id' => (int) ($p['id'] ?? 0),
+                    'nombre' => $p['nombre'],
+                    'precio' => $p['precio'] ?? null,
+                    'stock' => $p['stock'] ?? null,
+                    'imagen_url' => $p['imagen_url'] ?? null,
+                ];
             }
             $wa = ! empty($result['action']) && (($result['action']['type'] ?? '') === 'whatsapp');
             $tipo = $result['log_tipo'] ?? ($wa ? 'whatsapp' : ($n > 0 ? 'catalogo' : 'sin_producto'));
@@ -113,6 +122,9 @@ class AsistenteController extends Controller
             ];
             if (Schema::hasColumn('asistente_logs', 'productos')) {
                 $row['productos'] = $nombres ? mb_substr(implode(', ', $nombres), 0, 500) : null;
+            }
+            if (Schema::hasColumn('asistente_logs', 'productos_json')) {
+                $row['productos_json'] = $cards ? json_encode($cards, JSON_UNESCAPED_UNICODE) : null;
             }
             if (Schema::hasColumn('asistente_logs', 'queja_tipo')) {
                 $row['queja_tipo'] = isset($result['queja_tipo']) ? substr((string) $result['queja_tipo'], 0, 40) : null;
