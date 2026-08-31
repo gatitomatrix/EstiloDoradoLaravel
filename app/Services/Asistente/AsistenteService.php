@@ -13,15 +13,37 @@ class AsistenteService
         private OllamaClient $ollama,
         private GeminiClient $gemini,
         private WhatsappEscalation $whatsapp,
+        private ComplaintFlow $complaints,
     ) {}
 
-    public function handle(string $message, ?Cliente $cliente = null, array $offeredIds = [], ?string $awaiting = null): array
+    public function handle(string $message, ?Cliente $cliente = null, array $offeredIds = [], ?string $awaiting = null, array $complaint = []): array
     {
         $message = trim($message);
         $awaiting = is_string($awaiting) ? trim($awaiting) : '';
+        $complaint = is_array($complaint) ? $complaint : [];
 
+        if ($awaiting === 'complaint_phone') {
+            return $this->complaints->takePhone($message, $cliente, $complaint);
+        }
+        if ($awaiting === 'complaint_order') {
+            if (! $cliente) {
+                return $this->complaints->afterTipo($complaint['tipo'] ?? 'otro', $message, null, $complaint);
+            }
+
+            return $this->complaints->pickOrder($message, $cliente, $complaint);
+        }
+        if ($awaiting === 'complaint_login') {
+            if ($cliente) {
+                return $this->complaints->afterLogin($complaint['tipo'] ?? 'otro', $message, $cliente, $complaint);
+            }
+            if (preg_match('/whatsapp|\bno\b/u', mb_strtolower($message))) {
+                return $this->complaints->takePhone('no', null, $complaint);
+            }
+
+            return $this->complaints->afterTipo($complaint['tipo'] ?? 'otro', $message, null, $complaint);
+        }
         if ($awaiting === 'complaint_detail') {
-            return $this->resolveComplaintDetail($message, $cliente);
+            return $this->resolveComplaintDetail($message, $cliente, $complaint);
         }
 
         $intent = $this->detectIntent($message, $offeredIds !== []);
@@ -57,6 +79,11 @@ class AsistenteService
 
         $esc = $this->whatsapp->match($message);
         if ($esc) {
+            if (in_array($esc, ['reclamo', 'devolucion', 'cobro'], true)) {
+                $tipo = $this->whatsapp->classifyQueja($message) ?: $esc;
+
+                return $this->complaints->afterTipo($tipo, $message, $cliente, $complaint);
+            }
             $pedido = $this->findPedido($message, $cliente);
             $pid = is_array($pedido) ? ($pedido['id_pedido'] ?? null) : null;
 
@@ -69,7 +96,7 @@ class AsistenteService
                 'action' => $this->whatsapp->action($message, $pid ? (int) $pid : null),
                 'awaiting' => null,
                 'log_tipo' => 'whatsapp',
-                'queja_tipo' => $this->whatsapp->classifyQueja($message) ?: $esc,
+                'queja_tipo' => $esc,
                 'urgencia' => true,
             ];
         }
@@ -129,7 +156,7 @@ class AsistenteService
         ];
     }
 
-    private function resolveComplaintDetail(string $message, ?Cliente $cliente): array
+    private function resolveComplaintDetail(string $message, ?Cliente $cliente, array $complaint = []): array
     {
         if ($this->whatsapp->isVagueComplaint($message) && mb_strlen(trim($message)) < 32) {
             return [
@@ -142,25 +169,13 @@ class AsistenteService
                 'awaiting' => 'complaint_detail',
                 'log_tipo' => 'queja_espera',
                 'urgencia' => false,
+                'complaint' => $complaint,
             ];
         }
 
         $tipo = $this->whatsapp->classifyQueja($message) ?? 'otro';
-        $pedido = $this->findPedido($message, $cliente);
-        $pid = is_array($pedido) ? ($pedido['id_pedido'] ?? null) : null;
 
-        return [
-            'reply' => $this->whatsapp->replyQueja($tipo),
-            'driver' => 'rules',
-            'products' => [],
-            'pedido' => $pedido,
-            'suggestions' => [],
-            'action' => $this->whatsapp->action($message, $pid ? (int) $pid : null),
-            'awaiting' => null,
-            'log_tipo' => 'whatsapp',
-            'queja_tipo' => $tipo,
-            'urgencia' => true,
-        ];
+        return $this->complaints->afterTipo($tipo, $message, $cliente, $complaint);
     }
 
     private function systemPrompt(): string

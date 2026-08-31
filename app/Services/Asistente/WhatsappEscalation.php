@@ -171,7 +171,7 @@ class WhatsappEscalation
         if ($pedidoId) {
             $text .= ' Pedido N.° '.$pedidoId.'.';
         }
-        $text .= ' Necesito ayuda: '.mb_substr(trim($userMessage), 0, 180);
+        $text .= ' Necesito ayuda: '.mb_substr(trim($userMessage), 0, 280);
 
         return [
             'type' => 'whatsapp',

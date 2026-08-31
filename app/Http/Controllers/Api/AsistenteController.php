@@ -20,6 +20,11 @@ class AsistenteController extends Controller
             'offered_ids' => 'sometimes|array|max:12',
             'offered_ids.*' => 'integer|min:1',
             'awaiting' => 'sometimes|nullable|string|max:40',
+            'complaint' => 'sometimes|nullable|array',
+            'complaint.tipo' => 'sometimes|nullable|string|max:40',
+            'complaint.pedido_id' => 'sometimes|nullable|integer',
+            'complaint.phone' => 'sometimes|nullable|string|max:20',
+            'complaint.mensaje' => 'sometimes|nullable|string|max:300',
         ]);
 
         if (function_exists('set_time_limit')) {
@@ -35,10 +40,16 @@ class AsistenteController extends Controller
                 $data['message'],
                 $cliente,
                 $offered,
-                $data['awaiting'] ?? null
+                $data['awaiting'] ?? null,
+                $data['complaint'] ?? []
             );
 
             $this->logConsulta($data['message'], $result);
+
+            $actions = $result['actions'] ?? [];
+            if ($actions === [] && ! empty($result['action'])) {
+                $actions = [$result['action']];
+            }
 
             return response()->json([
                 'success' => true,
@@ -48,7 +59,10 @@ class AsistenteController extends Controller
                 'pedido' => $result['pedido'],
                 'suggestions' => $result['suggestions'],
                 'action' => $result['action'],
+                'actions' => $actions,
+                'pedidos' => $result['pedidos'] ?? [],
                 'awaiting' => $result['awaiting'] ?? null,
+                'complaint' => $result['complaint'] ?? null,
             ]);
         } catch (\Throwable $e) {
             Log::error('[asistente] '.$e->getMessage());
