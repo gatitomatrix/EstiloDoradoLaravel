@@ -55,7 +55,7 @@ class WhatsappEscalation
         if (! $vague) {
             return false;
         }
-        if (preg_match('/aplast|empap|machuc|aboll|mojad|humed|malograd|quebr|da[nñ]ad|roto|sucio|cobr|demas|no me lleg|no lleg|devoluci|devolver|extravi|tarde|demor/u', $m)) {
+        if (preg_match('/aplast|empap|machuc|aboll|mojad|humed|malograd|quebr|da[nñ]ad|roto|sucio|cobr|demas|no me lleg|no lleg|aun no lleg|aún no lleg|devoluci|devolver|extravi|tarde|demor/u', $m)) {
             return false;
         }
 
@@ -73,7 +73,7 @@ class WhatsappEscalation
         if (preg_match('/cobr|demas|de m[aá]s|doble cargo|descontaron/u', $m)) {
             return 'cobro';
         }
-        if (preg_match('/no me lleg|no lleg[oó]|no aparece|extravi|perd[ií]d/u', $m)) {
+        if (preg_match('/no me lleg|no lleg[oaó]|aun no lleg|aún no lleg|no aparece|extravi|perd[ií]d/u', $m)) {
             return 'no_llego';
         }
         if (preg_match('/devoluci|devolver|cambiar(lo)? el producto/u', $m)) {

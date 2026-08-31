@@ -108,14 +108,8 @@ class ComplaintFlow
             return $this->maybePhone($tipo, $message, $cliente, $ctx, true);
         }
 
-        $lines = [];
-        foreach ($orders as $i => $o) {
-            $n = $i + 1;
-            $lines[] = "{$n}) Pedido #{$o['id_pedido']} · {$o['fecha']} · S/ {$o['total']} · {$o['resumen']}";
-        }
         $txt = ($prefix ? $prefix.' ' : '')
-            .'Estos son tus últimos pedidos pagados. ¿Cuál tiene el problema? Toca uno o escribe 1, 2, 3 u «otro».'
-            ."\n".implode("\n", $lines);
+            .'Estos son tus últimos pedidos pagados. Ver = ficha (el chat no se cierra). «Este es» = queja de ese pedido. O escribe «otro».';
 
         return $this->pack($txt, [
             'awaiting' => 'complaint_order',
@@ -158,11 +152,18 @@ class ComplaintFlow
         $waMsg = $this->waText($ctx, $ctx['mensaje'] ?? $message);
         $extra = $sinPedidos ? ' Si no ves el pedido, igual la tienda te atiende.' : '';
 
+        $summary = trim((string) ($ctx['mensaje'] ?? $message));
+        if ($pid) {
+            $summary = 'Pedido #'.$pid.' · '.$summary;
+        }
+        $summary = $this->whatsapp->quejaLabel($tipo).' · '.$summary;
+
         return $this->pack(
             $this->whatsapp->replyQueja($tipo).$extra,
             [
                 'awaiting' => null,
                 'log_tipo' => 'whatsapp',
+                'log_mensaje' => mb_substr($summary, 0, 500),
                 'queja_tipo' => $tipo,
                 'urgencia' => true,
                 'action' => $this->whatsapp->action($waMsg, $pid),

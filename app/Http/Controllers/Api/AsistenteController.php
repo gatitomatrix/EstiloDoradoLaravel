@@ -112,17 +112,8 @@ class AsistenteController extends Controller
             $queja = $result['queja_tipo'] ?? null;
             $wa = ! empty($result['action']) && (($result['action']['type'] ?? '') === 'whatsapp');
             $pid = $result['pedido']['id_pedido'] ?? ($result['complaint']['pedido_id'] ?? null);
-            // "tengo una queja" sin detalle ni pedido: no ensucia el panel.
-            if ($logTipo === 'queja_espera' && empty($queja) && empty($pid) && ! $wa) {
-                return;
-            }
-            if (
-                preg_match('/queja|reclamo|quejarme|me quejo|inconform|molestia/u', $m)
-                && ! preg_match('/aplast|empap|machuc|aboll|mojad|humed|malograd|quebr|da[nñ]ad|roto|sucio|cobr|demas|no me lleg|no lleg|devoluci|devolver|extravi|tarde|demor|pedido\s*#?\s*\d/u', $m)
-                && empty($queja)
-                && empty($pid)
-                && ! $wa
-            ) {
+            // Pasos intermedios de la queja (detalle, pedido, celular): un solo log al WhatsApp.
+            if ($logTipo === 'queja_espera') {
                 return;
             }
             $n = is_array($result['products'] ?? null) ? count($result['products']) : 0;
@@ -143,7 +134,7 @@ class AsistenteController extends Controller
             }
             $tipo = $logTipo !== '' ? $logTipo : ($wa ? 'whatsapp' : ($n > 0 ? 'catalogo' : 'sin_producto'));
             $row = [
-                'mensaje' => mb_substr($message, 0, 500),
+                'mensaje' => mb_substr((string) ($result['log_mensaje'] ?? $message), 0, 500),
                 'tipo' => $tipo,
                 'n_productos' => min($n, 99),
                 'whatsapp' => $wa ? 1 : 0,
