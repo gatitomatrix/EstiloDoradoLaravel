@@ -60,6 +60,7 @@ class WhatsappEscalation
         }
 
         return true;
+    }
 
     /** Tipo de queja a partir del texto, o null si no se entiende. */
     public function classifyQueja(string $message): ?string
