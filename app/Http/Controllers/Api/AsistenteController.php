@@ -105,7 +105,24 @@ class AsistenteController extends Controller
                 return;
             }
             $m = mb_strtolower(trim($message));
-            if (preg_match('/^(hola|buenos\s*d[ií]as|buenas|gracias|genial|ok+|listo|chau|adi[oó]s)[\s!¡.]*$/u', $m)) {
+            if (preg_match('/^(hola|buenos\s*d[ií]as|buenas|gracias|genial|ok+|listo|chau|adi[oó]s|ya inici[eé] sesi[oó]n)[\s!¡.]*$/u', $m)) {
+                return;
+            }
+            $logTipo = $result['log_tipo'] ?? '';
+            $queja = $result['queja_tipo'] ?? null;
+            $wa = ! empty($result['action']) && (($result['action']['type'] ?? '') === 'whatsapp');
+            $pid = $result['pedido']['id_pedido'] ?? ($result['complaint']['pedido_id'] ?? null);
+            // "tengo una queja" sin detalle ni pedido: no ensucia el panel.
+            if ($logTipo === 'queja_espera' && empty($queja) && empty($pid) && ! $wa) {
+                return;
+            }
+            if (
+                preg_match('/queja|reclamo|quejarme|me quejo|inconform|molestia/u', $m)
+                && ! preg_match('/aplast|empap|machuc|aboll|mojad|humed|malograd|quebr|da[nñ]ad|roto|sucio|cobr|demas|no me lleg|no lleg|devoluci|devolver|extravi|tarde|demor|pedido\s*#?\s*\d/u', $m)
+                && empty($queja)
+                && empty($pid)
+                && ! $wa
+            ) {
                 return;
             }
             $n = is_array($result['products'] ?? null) ? count($result['products']) : 0;
@@ -124,8 +141,7 @@ class AsistenteController extends Controller
                     'imagen_url' => $p['imagen_url'] ?? null,
                 ];
             }
-            $wa = ! empty($result['action']) && (($result['action']['type'] ?? '') === 'whatsapp');
-            $tipo = $result['log_tipo'] ?? ($wa ? 'whatsapp' : ($n > 0 ? 'catalogo' : 'sin_producto'));
+            $tipo = $logTipo !== '' ? $logTipo : ($wa ? 'whatsapp' : ($n > 0 ? 'catalogo' : 'sin_producto'));
             $row = [
                 'mensaje' => mb_substr($message, 0, 500),
                 'tipo' => $tipo,
