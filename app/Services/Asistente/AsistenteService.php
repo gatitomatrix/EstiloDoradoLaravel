@@ -337,7 +337,7 @@ TXT;
                     '¿Agrego %s × %d (S/ %s c/u) al carrito? Confirma y uso el mismo carrito de la app, con el stock real.',
                     $p->nombre,
                     $qty,
-                    number_format((float) $p->precio_venta, 2, '.', '')
+                    number_format((float) $p->precio_final, 2, '.', '')
                 ),
                 'products' => [$card],
                 'action' => [
@@ -345,7 +345,7 @@ TXT;
                     'id' => $p->id_producto,
                     'qty' => $qty,
                     'nombre' => $p->nombre,
-                    'precio' => (float) $p->precio_venta,
+                    'precio' => (float) $p->precio_final,
                     'stock' => $stock,
                     'imagen_url' => $p->imagen_url,
                 ],
@@ -766,7 +766,7 @@ TXT;
                     '- id=%d | %s | S/ %s | stock=%d | tags=%s | desc=%s',
                     $p->id_producto,
                     $p->nombre,
-                    number_format((float) $p->precio_venta, 2, '.', ''),
+                    number_format((float) $p->precio_final, 2, '.', ''),
                     (int) $p->stock,
                     $p->etiquetas ?: '-',
                     mb_substr(trim((string) ($p->descripcion ?? '')), 0, 120) ?: '-'
@@ -838,7 +838,7 @@ TXT;
                 return sprintf(
                     '• %s — S/ %s (stock %d)',
                     $p->nombre,
-                    number_format((float) $p->precio_venta, 2, '.', ''),
+                    number_format((float) $p->precio_final, 2, '.', ''),
                     (int) $p->stock
                 );
             })->implode("\n");
@@ -873,7 +873,7 @@ TXT;
                 return sprintf(
                     '%s cuesta S/ %s. %s. Ábrelo en el catálogo (id %d) y agrégalo al carrito. Para pagar: carrito → entrega → Yape, tarjeta de prueba o efectivo.',
                     $p->nombre,
-                    number_format((float) $p->precio_venta, 2, '.', ''),
+                    number_format((float) $p->precio_final, 2, '.', ''),
                     $stock > 0 ? "Hay {$stock} unidad(es) en stock" : 'Por ahora está agotado',
                     $p->id_producto
                 );
@@ -883,7 +883,7 @@ TXT;
                 return sprintf(
                     '• %s — S/ %s (stock %d)',
                     $p->nombre,
-                    number_format((float) $p->precio_venta, 2, '.', ''),
+                    number_format((float) $p->precio_final, 2, '.', ''),
                     (int) $p->stock
                 );
             })->implode("\n");
@@ -899,7 +899,7 @@ TXT;
         return [
             'id' => $p->id_producto,
             'nombre' => $p->nombre,
-            'precio' => (float) $p->precio_venta,
+            'precio' => (float) $p->precio_final,
             'stock' => (int) $p->stock,
             'imagen_url' => $p->imagen_url,
         ];

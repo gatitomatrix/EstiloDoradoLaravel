@@ -16,6 +16,8 @@ use App\Http\Controllers\Api\PedidoClienteStoreController;
 
 // ==== ADMIN: =====
 use App\Http\Controllers\Api\Admin\ProductoAdminController;
+use App\Http\Controllers\Api\Admin\PromocionAdminController;
+use App\Http\Controllers\Api\PromocionPublicController;
 use App\Http\Controllers\Api\Admin\CategoriaAdminController;
 use App\Http\Controllers\Api\Admin\ProveedorAdminController;
 use App\Http\Controllers\Api\Admin\PedidoAdminController;
@@ -54,6 +56,7 @@ Route::middleware(['auth:sanctum', 'abilities:client'])->post('asistente/auth', 
 // PÚBLICO (tienda)
 // ---------------------------------------------------------
 Route::apiResource('productos', ProductoController::class);
+Route::get('promocion-activa', [PromocionPublicController::class, 'activa']);
 Route::get('categorias', [CategoriaController::class,'index']);
 Route::get('categorias/{id}/productos', [CategoriaController::class,'productos']);
 
@@ -141,6 +144,8 @@ Route::prefix('admin')->middleware(['auth:sanctum','abilities:admin'])->group(fu
         Route::post('proveedores',               [ProveedorAdminController::class, 'store']);
         Route::put('proveedores/{id}',           [ProveedorAdminController::class, 'update']);
         Route::delete('proveedores/{id}',        [ProveedorAdminController::class, 'destroy']);
+        Route::get('promocion',                  [PromocionAdminController::class, 'show']);
+        Route::put('promocion',                  [PromocionAdminController::class, 'update']);
 
         // edición de clientes solo ADMIN
         Route::put('clientes/{id}',              [ClienteAdminController::class, 'update']);

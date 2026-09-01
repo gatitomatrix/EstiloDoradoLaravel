@@ -68,6 +68,8 @@ class ProductoAdminController extends Controller
             'etiquetas'     => ['nullable','string','max:500'],
             'precio_compra' => ['required','numeric','min:0'],
             'precio_venta'  => ['required','numeric','min:0'],
+            'descuento_pct' => ['nullable','numeric','min:0','max:90'],
+            'oferta_hasta'  => ['nullable','date'],
             'stock'         => ['required','integer','min:0'],
             'id_categoria'  => ['required','integer','exists:categorias,id_categoria'],
             'id_proveedor'  => ['required','integer','exists:proveedores,id_proveedor'],
@@ -92,6 +94,12 @@ class ProductoAdminController extends Controller
         $p->etiquetas      = $this->normalizeEtiquetas($data['etiquetas'] ?? null);
         $p->precio_compra  = $data['precio_compra'];
         $p->precio_venta   = $data['precio_venta'];
+        if (\Illuminate\Support\Facades\Schema::hasColumn('productos', 'descuento_pct')) {
+            $p->descuento_pct = $data['descuento_pct'] ?? 0;
+        }
+        if (\Illuminate\Support\Facades\Schema::hasColumn('productos', 'oferta_hasta')) {
+            $p->oferta_hasta = $data['oferta_hasta'] ?? null;
+        }
         $p->stock          = $data['stock'];
         $p->id_categoria   = $data['id_categoria'];
         $p->id_proveedor   = $data['id_proveedor'];
@@ -119,6 +127,8 @@ class ProductoAdminController extends Controller
             'etiquetas'     => ['nullable','string','max:500'],
             'precio_compra' => ['required','numeric','min:0'],
             'precio_venta'  => ['required','numeric','min:0'],
+            'descuento_pct' => ['nullable','numeric','min:0','max:90'],
+            'oferta_hasta'  => ['nullable','date'],
             'stock'         => ['required','integer','min:0'],
             'id_categoria'  => ['required','integer','exists:categorias,id_categoria'],
             'id_proveedor'  => ['required','integer','exists:proveedores,id_proveedor'],
@@ -142,6 +152,12 @@ class ProductoAdminController extends Controller
         }
         $p->precio_compra  = $data['precio_compra'];
         $p->precio_venta   = $data['precio_venta'];
+        if (\Illuminate\Support\Facades\Schema::hasColumn('productos', 'descuento_pct')) {
+            $p->descuento_pct = $data['descuento_pct'] ?? 0;
+        }
+        if (\Illuminate\Support\Facades\Schema::hasColumn('productos', 'oferta_hasta')) {
+            $p->oferta_hasta = $data['oferta_hasta'] ?? null;
+        }
         $p->stock          = $data['stock'];
         $p->id_categoria   = $data['id_categoria'];
         $p->id_proveedor   = $data['id_proveedor'];
