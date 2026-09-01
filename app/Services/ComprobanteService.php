@@ -18,6 +18,7 @@ use Greenter\Ws\Services\SunatEndpoints;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\View;
+use Carbon\Carbon;
 
 // QR (chillerlan)
 use chillerlan\QRCode\QRCode as ChilliQRCode;
@@ -129,6 +130,9 @@ class ComprobanteService
 
         // -------- Comprobante --------
         $tz = new DateTimeZone('America/Lima');
+        $emision = $pedido->fecha_pedido
+            ? Carbon::parse($pedido->fecha_pedido)->timezone('America/Lima')
+            : Carbon::now('America/Lima');
 
         $invoice = (new Invoice())
             ->setUblVersion('2.1')
@@ -136,7 +140,7 @@ class ComprobanteService
             ->setTipoDoc($tipoDocCpe)
             ->setSerie($serie)
             ->setCorrelativo((string)$numero)
-            ->setFechaEmision(new DateTime('now', $tz))
+            ->setFechaEmision(new DateTime($emision->format('Y-m-d H:i:s'), $tz))
             ->setFormaPago(new FormaPagoContado())
             ->setTipoMoneda('PEN')
             ->setCompany($company)
