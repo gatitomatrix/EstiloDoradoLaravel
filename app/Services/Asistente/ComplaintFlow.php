@@ -149,28 +149,102 @@ class ComplaintFlow
     private function finish(string $tipo, string $message, ?Cliente $cliente, array $ctx, bool $sinPedidos = false): array
     {
         $pid = isset($ctx['pedido_id']) ? (int) $ctx['pedido_id'] : null;
-        $waMsg = $this->waText($ctx, $ctx['mensaje'] ?? $message);
+        $snap = $this->orderSnapshot($pid);
+        $waMsg = $this->waText($ctx, $ctx['mensaje'] ?? $message, $snap['items']);
         $extra = $sinPedidos ? ' Si no ves el pedido, igual la tienda te atiende.' : '';
 
         $summary = trim((string) ($ctx['mensaje'] ?? $message));
         if ($pid) {
             $summary = 'Pedido #'.$pid.' · '.$summary;
         }
+        if ($snap['items'] !== []) {
+            $summary .= ' · '.implode(', ', $snap['items']);
+        }
         $summary = $this->whatsapp->quejaLabel($tipo).' · '.$summary;
 
         return $this->pack(
-            $this->whatsapp->replyQueja($tipo).$extra,
+            $this->closingReply($tipo, $pid, $snap['items'], $ctx['phone'] ?? null).$extra,
             [
                 'awaiting' => null,
                 'log_tipo' => 'whatsapp',
                 'log_mensaje' => mb_substr($summary, 0, 500),
                 'queja_tipo' => $tipo,
                 'urgencia' => true,
+                'products' => $snap['products'],
                 'action' => $this->whatsapp->action($waMsg, $pid),
                 'complaint' => $ctx,
                 'pedido' => $pid ? ['id_pedido' => $pid] : null,
             ]
         );
+    }
+
+    private function orderSnapshot(?int $pid): array
+    {
+        $empty = ['items' => [], 'products' => []];
+        if (! $pid) {
+            return $empty;
+        }
+
+        $pedido = Pedido::query()->with(['detalles.producto'])->find($pid);
+        if (! $pedido) {
+            return $empty;
+        }
+
+        $items = [];
+        $products = [];
+        foreach ($pedido->detalles as $d) {
+            $prod = $d->producto;
+            $qty = (int) ($d->cantidad ?? 1);
+            $items[] = ($prod?->nombre ?? 'Ítem').' × '.$qty;
+            if ($prod) {
+                $products[] = [
+                    'id' => (int) $prod->id_producto,
+                    'nombre' => $prod->nombre,
+                    'precio' => (float) $prod->precio_venta,
+                    'stock' => (int) $prod->stock,
+                    'imagen_url' => $prod->imagen_url,
+                    'cantidad' => $qty,
+                ];
+            }
+        }
+
+        return ['items' => $items, 'products' => $products];
+    }
+
+    private function closingReply(string $tipo, ?int $pid, array $items, ?string $phone): string
+    {
+        $pedidoTxt = $pid ? ' el Pedido #'.$pid : '';
+        if ($items !== []) {
+            $pedidoTxt .= ' ('.implode(', ', $items).')';
+        }
+
+        $inicio = match ($tipo) {
+            'producto_danado' => 'Lamento que'.$pedidoTxt.' haya llegado en mal estado. Eso lo vemos en persona, no desde el chat.',
+            'cobro' => 'Entiendo la preocupación por el cobro'.($pid ? ' del Pedido #'.$pid : '').'. Yo no veo tu banco o Yape; con una captura lo revisan rápido.',
+            'no_llego' => 'Siento que no te haya llegado'.$pedidoTxt.'. El rastreo lo confirma la tienda, no el chat.',
+            'devolucion' => 'Los cambios y devoluciones'.($pid ? ' del Pedido #'.$pid : '').' los coordina la tienda; yo no puedo autorizarlos aquí.',
+            'demora' => 'Siento la demora'.($pid ? ' del Pedido #'.$pid : '').'. Los plazos exactos los confirma la tienda.',
+            default => 'Gracias por contarme'.($pid ? ' lo del Pedido #'.$pid : '').'. Un reclamo así lo ve una persona de la tienda.',
+        };
+
+        $wa = 'El botón de WhatsApp ya lleva';
+        $bits = [];
+        if ($pid) {
+            $bits[] = 'el pedido';
+        }
+        if ($items !== []) {
+            $bits[] = 'el producto';
+        }
+        if ($phone) {
+            $bits[] = 'tu celular';
+        }
+        $wa .= ($bits === [] ? ' tu consulta' : ' '.implode(', ', $bits)).'.';
+        if ($tipo === 'producto_danado') {
+            $wa .= ' Si puedes, adjunta una foto del producto.';
+        }
+        $wa .= ' Ahí te atiende alguien de Estilo Dorado.';
+
+        return $inicio.' '.$wa;
     }
 
     private function lastPaid(Cliente $cliente): array
@@ -185,24 +259,28 @@ class ComplaintFlow
 
         $out = [];
         foreach ($rows as $p) {
-            $nom = $p->detalles->first()?->producto?->nombre ?? 'Pedido';
+            $first = $p->detalles->first()?->producto;
             $out[] = [
                 'id_pedido' => (int) $p->id_pedido,
                 'fecha' => optional($p->fecha_pedido)?->timezone('America/Lima')->format('d/m/Y') ?: '',
                 'total' => number_format((float) $p->total, 2, '.', ''),
                 'estado' => $p->estado,
-                'resumen' => mb_substr((string) $nom, 0, 40),
+                'resumen' => mb_substr((string) ($first?->nombre ?? 'Pedido'), 0, 40),
+                'imagen_url' => $first?->imagen_url,
             ];
         }
 
         return $out;
     }
 
-    private function waText(array $ctx, string $fallback): string
+    private function waText(array $ctx, string $fallback, array $items = []): string
     {
         $t = 'Queja: '.$this->whatsapp->quejaLabel($ctx['tipo'] ?? 'otro').'. ';
         if (! empty($ctx['pedido_id'])) {
             $t .= 'Pedido N.° '.$ctx['pedido_id'].'. ';
+        }
+        if ($items !== []) {
+            $t .= 'Productos: '.implode(', ', $items).'. ';
         }
         if (! empty($ctx['phone'])) {
             $t .= 'Celular: '.$ctx['phone'].'. ';

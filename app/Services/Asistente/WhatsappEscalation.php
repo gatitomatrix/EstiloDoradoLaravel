@@ -15,7 +15,7 @@ class WhatsappEscalation
             'humano' => '/p[aá]same con|hablar con (la |el )?(due[nñ]a|gerente|asesor|persona)|con marlene|agente humano|persona real|quiero un (asesor|humano)/u',
             'reclamo' => '/reclamo|queja|quejarme|me quejo|tengo una queja|inconform|molestia|(mi|el) producto lleg|empapad|aplastad|machucad|abollad|mojad|humedec|malograd|quebr[ao]|da[nñ]ad|no era lo que|producto incorrecto|me lleg[oó].{0,25}(mal|roto|aplast|machuc|aboll|mojad|empap|tarde|sucio|abierto)|lleg[oó].{0,20}(aplast|roto|machuc|empap)|no me lleg[oó]/u',
             'devolucion' => '/devoluci[oó]n|devolverlo|quiero cambiar(lo)? el producto|cambio (del|de) producto/u',
-            'cobro' => '/cobr(aron|ado|aste).{0,24}(de\s*m[aá]s|demas|dem[aá]s|dos veces|doble)|doble cargo|me descontaron (de m[aá]s|dos)|cobro (de m[aá]s|demas|incorrecto)|me (han )?cobrado de/u',
+            'cobro' => '/cobr(aron|ado|aste).{0,24}(de\s*m[á]s|demas|dem[á]s|dos veces|doble)|doble cargo|me descontaron (de m[á]s|dos)|cobro (de m[á]s|demas|incorrecto)|me (han )?cobrado de/u',
             'comprobante' => '/anular (boleta|factura)|cambiar (el )?ruc|raz[oó]n social|comprobante mal|factura mal emitida/u',
             'mayoreo' => '/mayoreo|por mayor|descuento por (cantidad|lote)|precio especial|cincuenta cajas|\b\d{2,}\s*cajas/u',
             'medida' => '/a medida|con esta foto|este texto exacto|logo de mi (empresa|negocio)|dise[nñ]o (m[ií]o|propio)/u',
@@ -24,15 +24,15 @@ class WhatsappEscalation
             'yape' => '/yape[eé].*(pendiente|no (aparece|figura|refleja))|pagu[eé].*no (aparece|figura)|transfer[ií].*no (aparece|figura)/u',
             'acceso' => '/no me deja entrar|no puedo (iniciar|entrar|logu)|me robaron la cuenta|olvid[eé] (el )?correo/u',
             'tercero' => '/cu[aá]nto compr[oó]|datos de (la|el|otra)|pedido de otra|sra\.|se[nñ]or(a|ita) p[eé]rez/u',
-            'empleo' => '/vacante|contratan|pr[aá]cticas|trabajo con ustedes|est[aá]n contratando/u',
-            'legal' => '/alquiler del local|ruc para tr[aá]mite|datos de la empresa para notario|escritura p[uú]blica/u',
-            'horario' => '/horario (de )?(atenci[oó]n|tienda|local)|a qu[eé] hora abren|[aá]nen (hoy|ma[nñ]ana)|est[aá]n abiertos/u',
-            'almacen' => '/almac[eé]n de atr[aá]s|stock f[ií]sico|tienen en tienda (aunque|si) no (sale|aparece)/u',
+            'empleo' => '/vacante|contratan|pr[á]cticas|trabajo con ustedes|est[á]n contratando/u',
+            'legal' => '/alquiler del local|ruc para tr[á]mite|datos de la empresa para notario|escritura p[uú]blica/u',
+            'horario' => '/horario (de )?(atenci[oó]n|tienda|local)|a qu[eé] hora abren|[á]nen (hoy|ma[nñ]ana)|est[á]n abiertos/u',
+            'almacen' => '/almac[eé]n de atr[á]s|stock f[ií]sico|tienen en tienda (aunque|si) no (sale|aparece)/u',
             'salud' => '/digesa|al[eé]rgen|apto para beb[eé]|certificaci[oó]n (m[eé]dica|sanitaria)/u',
             'abogado' => '/denuncia|abogado|demandar|indescope|indecopi|sunat (multa|fiscal)/u',
             'tecnico' => '/no carga el mapa|se cerr[oó] al pagar|error al pagar|crashe[oó]|se trab[oó] el pago/u',
             'direccion' => '/cambiar (la )?direcci[oó]n (del|de mi) pedido|ya pagu[eé].*otra direcci[oó]n/u',
-            'motorizado' => '/d[oó]nde est[aá] el (motorizado|repartidor|courier)|rastrear (el )?motorizado/u',
+            'motorizado' => '/d[oó]nde est[á] el (motorizado|repartidor|courier)|rastrear (el )?motorizado/u',
             'cupon' => '/c[oó]digo (de )?descuento|cup[oó]n|promo (que )?me prometieron/u',
             'cancelar_pagado' => '/cancelar (el )?pedido (ya )?pagado|me arrepent[ií].*ya pagu[eé]/u',
             'insulto' => '/\b(estafa(dores)?|ladrones|imb[eé]cil|est[uú]pid|hdp|mierda|puta)\b/u',
@@ -70,7 +70,7 @@ class WhatsappEscalation
             || preg_match('/(mi|el) producto lleg|me lleg[oó].{0,25}(mal|roto|aplast)/u', $m)) {
             return 'producto_danado';
         }
-        if (preg_match('/cobr|demas|de m[aá]s|doble cargo|descontaron/u', $m)) {
+        if (preg_match('/cobr|demas|de m[á]s|doble cargo|descontaron/u', $m)) {
             return 'cobro';
         }
         if (preg_match('/no me lleg|no lleg[oaó]|aun no lleg|aún no lleg|no aparece|extravi|perd[ií]d/u', $m)) {
@@ -103,7 +103,7 @@ class WhatsappEscalation
 
     public function replyQueja(string $tipo): string
     {
-        $cierre = 'Escríbenos por WhatsApp con tu número de pedido (y una foto si aplica) y te atiende alguien de la tienda. Gracias por confiar en Estilo Dorado.';
+        $cierre = 'El botón de WhatsApp ya lleva tu consulta. Ahí te atiende alguien de la tienda.';
         $inicio = match ($tipo) {
             'producto_danado' => 'Lamento mucho que el producto haya llegado en mal estado. Eso lo vemos en persona, no lo resuelvo yo desde el chat.',
             'cobro' => 'Entiendo la preocupación por el cobro. Yo no veo tu banco o Yape; con una captura lo revisan rápido.',
@@ -124,7 +124,7 @@ class WhatsappEscalation
 
     public function reply(string $key): string
     {
-        $cierre = "Escríbenos por WhatsApp con tu número de pedido (y una foto si aplica) y te atiende alguien de la tienda. Gracias por confiar en Estilo Dorado.";
+        $cierre = "Escríbenos por WhatsApp. El botón ya arma el mensaje para la tienda.";
 
         $inicio = match ($key) {
             'reclamo' => 'Lamento mucho que el pedido no haya llegado como esperabas. Un reclamo así lo vemos en persona, no desde el chat.',
