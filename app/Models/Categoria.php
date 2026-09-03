@@ -13,6 +13,10 @@ class Categoria extends Model
     protected $fillable = [
         'nombre',
         'descripcion',
-        // 'estado', // <-- descomenta si existe en tu tabla
     ];
+
+    public function productos()
+    {
+        return $this->hasMany(\App\Models\Producto::class, 'id_categoria', 'id_categoria');
+    }
 }
