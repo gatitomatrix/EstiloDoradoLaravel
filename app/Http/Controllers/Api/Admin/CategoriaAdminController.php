@@ -13,7 +13,7 @@ class CategoriaAdminController extends Controller
     {
         if ($request->boolean('all')) {
             return response()->json([
-                'data' => Categoria::orderBy('nombre')->get(['id_categoria', 'nombre']),
+                'data' => Categoria::orderBy('id_categoria')->get(['id_categoria', 'nombre']),
             ]);
         }
 
@@ -25,7 +25,7 @@ class CategoriaAdminController extends Controller
             $q->where('nombre', 'like', "%{$term}%");
         }
 
-        return $q->orderBy('nombre')
+        return $q->orderBy('id_categoria')
             ->paginate($per, ['id_categoria', 'nombre', 'descripcion']);
     }
 

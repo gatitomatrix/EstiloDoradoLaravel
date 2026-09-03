@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Api;
+namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Models\Categoria;
@@ -9,13 +9,11 @@ use Illuminate\Http\Request;
 
 class CategoriaController extends Controller
 {
-    // GET /api/categorias
-     public function index()
+    public function index()
     {
-        return Categoria::select('id_categoria','nombre')->orderBy('nombre')->get();
+        return Categoria::select('id_categoria','nombre')->orderBy('id_categoria')->get();
     }
 
-    // GET /api/categorias/{id}/productos
     public function productos($id, Request $request)
     {
         $per = (int)($request->get('per_page', 12));
