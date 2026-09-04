@@ -10,6 +10,7 @@ use App\Models\PedidoEstadoHistorial;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use App\Services\ComprobanteService;
+use App\Services\Envio\TarifaEnvio;
 
 class PedidoPagoController extends Controller
 {
@@ -150,6 +151,14 @@ class PedidoPagoController extends Controller
         $tipoElegido = $hasFA ? 'FA' : 'BO';
         if (!empty($data['comprobante'])) {
             $tipoElegido = strtoupper($data['comprobante']) === 'FA' ? 'FA' : 'BO';
+        }
+
+        $dir = (string) ($data['direccion_entrega'] ?? '');
+        $esRetiro = str_contains(mb_strtoupper($dir), 'RETIRO');
+        if ($dir !== '' && ! $esRetiro && ! TarifaEnvio::cubre(null, null, $dir)) {
+            return response()->json([
+                'message' => 'Por ahora el envío a domicilio solo cubre Lima, Callao, Junín (Huancayo) y Pasco (Cerro de Pasco). Puedes retirar en tienda.',
+            ], 422);
         }
 
         return DB::transaction(function () use ($data, $user, $tipoElegido) {

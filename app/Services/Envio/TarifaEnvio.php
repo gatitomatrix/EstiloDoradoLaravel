@@ -3,10 +3,26 @@
 namespace App\Services\Envio;
 
 /**
- * Estimado tipo Shalom desde Huancayo. No es cotización en vivo.
+ * Estimado tipo Shalom desde Huancayo.
+ * Cobertura: Lima, Callao, Junín (Huancayo) y Pasco (Cerro de Pasco).
  */
 class TarifaEnvio
 {
+    public static function cubre(?string $departamento, ?string $provincia = null, ?string $texto = null): bool
+    {
+        $blob = self::norm($departamento.' '.$provincia.' '.$texto);
+        if ($blob === '') {
+            return false;
+        }
+        foreach (['HUANCAYO', 'JUNIN', 'LIMA', 'CALLAO', 'PASCO', 'CERRO DE PASCO'] as $k) {
+            if (str_contains($blob, $k)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public static function estimar(?string $departamento, ?string $provincia): array
     {
         $d = self::norm($departamento);
@@ -26,6 +42,13 @@ class TarifaEnvio
                 'etiqueta' => 'Junín (otras provincias) · estimado Shalom',
             ];
         }
+        if (str_contains($d, 'PASCO') || str_contains($p, 'PASCO') || str_contains($p, 'CERRO DE PASCO')) {
+            return [
+                'costo' => 14.0,
+                'zona' => 'pasco',
+                'etiqueta' => 'Pasco / Cerro de Pasco · estimado Shalom',
+            ];
+        }
         if (str_contains($d, 'LIMA') || str_contains($d, 'CALLAO') || str_contains($p, 'CALLAO') || str_contains($p, 'LIMA')) {
             return [
                 'costo' => 18.0,
@@ -35,9 +58,9 @@ class TarifaEnvio
         }
 
         return [
-            'costo' => 25.0,
-            'zona' => 'resto',
-            'etiqueta' => 'Resto del Perú · estimado Shalom',
+            'costo' => 0.0,
+            'zona' => 'fuera',
+            'etiqueta' => 'Fuera de cobertura. Enviamos a Lima, Callao, Junín y Pasco.',
         ];
     }
 
