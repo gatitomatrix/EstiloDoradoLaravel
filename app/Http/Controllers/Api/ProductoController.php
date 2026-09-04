@@ -13,7 +13,21 @@ class ProductoController extends Controller
     // GET /api/productos?q=&categoria=&proveedor=&estado=
     public function index(\Illuminate\Http\Request $r)
     {
-        $q = Producto::query();
+        $q = Producto::query()->select([
+            'id_producto',
+            'nombre',
+            'descripcion',
+            'etiquetas',
+            'precio_venta',
+            'descuento_pct',
+            'oferta_hasta',
+            'stock',
+            'id_categoria',
+            'id_proveedor',
+            'imagen_url',
+            'estado',
+            'slug',
+        ]);
 
         // Catálogo público: solo activos, salvo que pidan otro estado
         if ($r->filled('estado')) {
@@ -66,7 +80,32 @@ class ProductoController extends Controller
             $q->where('id_categoria', $r->categoria);
         }
 
-        return $q->orderByDesc('id_producto')->get();
+        try {
+            return $q->orderByDesc('id_producto')->get();
+        } catch (\Throwable $e) {
+            $q = Producto::query()->select([
+                'id_producto',
+                'nombre',
+                'descripcion',
+                'precio_venta',
+                'stock',
+                'id_categoria',
+                'imagen_url',
+                'estado',
+            ]);
+            if ($r->filled('estado')) {
+                $q->where('estado', $r->estado);
+            } else {
+                $q->where(function ($w) {
+                    $w->whereNull('estado')->orWhere('estado', 'activo');
+                });
+            }
+            if ($r->filled('categoria')) {
+                $q->where('id_categoria', $r->categoria);
+            }
+
+            return $q->orderByDesc('id_producto')->get();
+        }
     }
 
     // GET /api/productos/{id}

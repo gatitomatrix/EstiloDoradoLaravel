@@ -4,7 +4,6 @@ namespace App\Services;
 
 use App\Models\Producto;
 use App\Models\Promocion;
-use Illuminate\Support\Facades\Schema;
 
 class PrecioService
 {
@@ -16,12 +15,13 @@ class PrecioService
             return $this->campana;
         }
         $this->campana = null;
-        if (! Schema::hasTable('promociones')) {
-            return null;
-        }
-        $row = Promocion::query()->where('activo', true)->orderByDesc('id')->first();
-        if ($row && $this->vigente($row->fecha_inicio, $row->fecha_fin) && (float) $row->porcentaje > 0) {
-            $this->campana = $row;
+        try {
+            $row = Promocion::query()->where('activo', true)->orderByDesc('id')->first();
+            if ($row && $this->vigente($row->fecha_inicio, $row->fecha_fin) && (float) $row->porcentaje > 0) {
+                $this->campana = $row;
+            }
+        } catch (\Throwable $e) {
+            $this->campana = null;
         }
 
         return $this->campana;
@@ -29,10 +29,11 @@ class PrecioService
 
     public function pctProducto(Producto $p): float
     {
-        if (! Schema::hasColumn('productos', 'descuento_pct')) {
+        try {
+            $pct = (float) ($p->descuento_pct ?? 0);
+        } catch (\Throwable $e) {
             return 0;
         }
-        $pct = (float) ($p->descuento_pct ?? 0);
         if ($pct <= 0) {
             return 0;
         }
