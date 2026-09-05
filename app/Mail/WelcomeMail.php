@@ -16,7 +16,8 @@ class WelcomeMail extends Mailable
 
     public function __construct(public Cliente $cliente)
     {
-        $this->tiendaUrl = (string) config('app.frontend_url');
+        $url = (string) config('app.frontend_url');
+        $this->tiendaUrl = rtrim($url !== '' ? $url : 'https://estilodorado.net.pe', '/');
     }
 
     public function envelope(): Envelope
@@ -29,7 +30,7 @@ class WelcomeMail extends Mailable
     public function content(): Content
     {
         return new Content(
-            markdown: 'emails.welcome',
+            html: 'emails.welcome',
         );
     }
 }
