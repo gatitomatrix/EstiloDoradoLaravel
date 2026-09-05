@@ -97,11 +97,13 @@ class AsistenteAdminController extends Controller
     {
         $consultas = [];
         if (Schema::hasTable('asistente_logs') && Schema::hasColumn('asistente_logs', 'productos_json')) {
-            $rows = DB::table('asistente_logs')
-                ->whereNotNull('productos_json')
-                ->orderByDesc('id')
-                ->limit(800)
-                ->get(['productos_json']);
+            $q = DB::table('asistente_logs')->whereNotNull('productos_json');
+            if (Schema::hasColumn('asistente_logs', 'tipo')) {
+                $q->where(function ($w) {
+                    $w->whereNull('tipo')->orWhereNotIn('tipo', ['whatsapp', 'queja_espera']);
+                });
+            }
+            $rows = $q->orderByDesc('id')->limit(800)->get(['productos_json']);
             foreach ($rows as $r) {
                 $j = json_decode((string) $r->productos_json, true);
                 if (! is_array($j)) {

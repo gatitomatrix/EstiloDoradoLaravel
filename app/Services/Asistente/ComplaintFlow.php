@@ -243,6 +243,7 @@ class ComplaintFlow
                     'stock' => (int) $prod->stock,
                     'imagen_url' => $prod->imagen_url,
                     'cantidad' => $qty,
+                    'info_only' => true,
                 ];
             }
         }
