@@ -8,28 +8,27 @@ use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
 
-class PasswordChangedMail extends Mailable
+class ResetPasswordMail extends Mailable
 {
     use SerializesModels;
 
-    public string $tiendaUrl;
-
-    public function __construct(public Cliente $cliente)
-    {
-        $this->tiendaUrl = (string) config('app.frontend_url');
-    }
+    public function __construct(
+        public Cliente $cliente,
+        public string $code,
+        public string $resetUrl,
+    ) {}
 
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Tu contraseña de Estilo Dorado se actualizó',
+            subject: 'Código para recuperar tu contraseña — Estilo Dorado',
         );
     }
 
     public function content(): Content
     {
         return new Content(
-            markdown: 'emails.password-changed',
+            markdown: 'emails.reset-password',
         );
     }
 }

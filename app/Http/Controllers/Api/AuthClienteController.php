@@ -12,6 +12,8 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Http;
 use App\Mail\WelcomeMail;
 use App\Mail\PasswordChangedMail;
+use App\Mail\ResetPasswordMail;
+use Illuminate\Support\Facades\DB;
 
 class AuthClienteController extends Controller
 {
@@ -199,28 +201,102 @@ class AuthClienteController extends Controller
             : response()->json(['exists' => false], 404);
     }
 
-    public function resetSimple(Request $request)
+    /**
+     * Envía un código de 6 dígitos (60 min). Siempre 200 para no filtrar si el correo existe.
+     */
+    public function forgotPassword(Request $request)
+    {
+        $data = $request->validate(['email' => 'required|email']);
+        $email = strtolower(trim($data['email']));
+
+        $cliente = Cliente::where('email', $email)->first();
+        if ($cliente) {
+            $code = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+            DB::table('password_reset_tokens')->updateOrInsert(
+                ['email' => $email],
+                ['token' => Hash::make($code), 'created_at' => now()]
+            );
+
+            $resetUrl = config('app.frontend_url').'/restablecer?email='.urlencode($email).'&codigo='.$code;
+
+            try {
+                Mail::to($cliente->email)->send(new ResetPasswordMail($cliente, $code, $resetUrl));
+            } catch (\Throwable $e) {
+                Log::warning('[forgotPassword] mail: '.$e->getMessage());
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Si el correo está registrado, te enviamos un código para restablecer la contraseña.',
+        ]);
+    }
+
+    /**
+     * Restablece con el código del correo.
+     */
+    public function resetWithCode(Request $request)
     {
         $data = $request->validate([
-            'email'      => 'required|email',
-            'contrasena' => 'required|string|min:6|max:255',
+            'email' => 'required|email',
+            'codigo' => 'required|string|min:4|max:12',
+            'password' => 'required|string|min:6|confirmed',
         ]);
 
-        $cliente = Cliente::where('email', $data['email'])->first();
-        if (!$cliente) {
+        $email = strtolower(trim($data['email']));
+        $row = DB::table('password_reset_tokens')->where('email', $email)->first();
+        if (! $row) {
+            return response()->json(['message' => 'Código inválido o vencido. Pide uno nuevo.'], 422);
+        }
+
+        $created = $row->created_at ? \Carbon\Carbon::parse($row->created_at) : null;
+        if (! $created || $created->lt(now()->subMinutes(60))) {
+            DB::table('password_reset_tokens')->where('email', $email)->delete();
+
+            return response()->json(['message' => 'El código venció. Pide uno nuevo.'], 422);
+        }
+
+        if (! Hash::check(trim($data['codigo']), $row->token)) {
+            return response()->json(['message' => 'Código inválido.'], 422);
+        }
+
+        $cliente = Cliente::where('email', $email)->first();
+        if (! $cliente) {
             return response()->json(['message' => 'Cliente no encontrado'], 404);
         }
 
-        $cliente->contrasena = Hash::make($data['contrasena']);
+        $cliente->contrasena = Hash::make($data['password']);
         $cliente->save();
+        DB::table('password_reset_tokens')->where('email', $email)->delete();
 
         try {
             Mail::to($cliente->email)->send(new PasswordChangedMail($cliente));
         } catch (\Throwable $e) {
-            Log::warning('[resetSimple] mail: '.$e->getMessage());
+            Log::warning('[resetWithCode] mail: '.$e->getMessage());
         }
 
-        return response()->json(['message' => 'Contraseña actualizada'], 200);
+        return response()->json(['success' => true, 'message' => 'Contraseña actualizada'], 200);
+    }
+
+    /**
+     * @deprecated Usar forgot + reset con código. Se deja para no romper clientes viejos,
+     * pero exige el código del correo (ya no cambia la clave solo con el email).
+     */
+    public function resetSimple(Request $request)
+    {
+        if (! $request->filled('password') && $request->filled('contrasena')) {
+            $request->merge([
+                'password' => $request->input('contrasena'),
+                'password_confirmation' => $request->input('password_confirmation')
+                    ?? $request->input('contrasena_confirmation')
+                    ?? $request->input('contrasena'),
+            ]);
+        }
+        if (! $request->filled('codigo') && $request->filled('code')) {
+            $request->merge(['codigo' => $request->input('code')]);
+        }
+
+        return $this->resetWithCode($request);
     }
 
     public function updatePassword(Request $request)
@@ -320,6 +396,14 @@ class AuthClienteController extends Controller
         }
 
         $token = $cliente->createToken('token_cliente', ['client'])->plainTextToken;
+
+        if ($created) {
+            try {
+                Mail::to($cliente->email)->send(new WelcomeMail($cliente));
+            } catch (\Throwable $e) {
+                Log::warning('[google] WelcomeMail: '.$e->getMessage());
+            }
+        }
 
         return response()->json([
             'success' => true,

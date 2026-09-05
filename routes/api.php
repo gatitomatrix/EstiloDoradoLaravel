@@ -68,7 +68,9 @@ Route::post('auth/register', [AuthClienteController::class, 'register']);
 Route::post('auth/login',    [AuthClienteController::class, 'login']);
 Route::post('auth/google',   [AuthClienteController::class, 'google']);
 Route::post('auth/check-email',            [AuthClienteController::class, 'checkEmail']);
-Route::post('auth/password/reset-simple',  [AuthClienteController::class, 'resetSimple']);
+Route::post('auth/password/forgot',        [AuthClienteController::class, 'forgotPassword'])->middleware('throttle:5,1');
+Route::post('auth/password/reset',         [AuthClienteController::class, 'resetWithCode'])->middleware('throttle:10,1');
+Route::post('auth/password/reset-simple',  [AuthClienteController::class, 'resetSimple'])->middleware('throttle:10,1');
 
 Route::middleware(['auth:sanctum','abilities:client'])->group(function () {
     Route::get('auth/me',       [AuthClienteController::class, 'me']);

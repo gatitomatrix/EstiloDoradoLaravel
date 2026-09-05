@@ -3,7 +3,6 @@
 namespace App\Mail;
 
 use App\Models\Cliente;
-use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
@@ -11,19 +10,19 @@ use Illuminate\Queue\SerializesModels;
 
 class WelcomeMail extends Mailable
 {
-    use Queueable, SerializesModels;
+    use SerializesModels;
 
-    public $cliente;
+    public string $tiendaUrl;
 
-    public function __construct(Cliente $cliente)
+    public function __construct(public Cliente $cliente)
     {
-        $this->cliente = $cliente;
+        $this->tiendaUrl = (string) config('app.frontend_url');
     }
 
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: '¡Bienvenido a Estilo Dorado! 🎉',
+            subject: '¡Bienvenido a Estilo Dorado!',
         );
     }
 
