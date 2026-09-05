@@ -55,6 +55,16 @@ class AsistenteAdminController extends Controller
         $tipo = (string) ($r->queja_tipo ?? '');
         $r->queja_label = $tipo !== '' ? (new WhatsappEscalation)->quejaLabel($tipo) : null;
         $r->productos_items = $this->parseProductos($r);
+        $cel = preg_replace('/\D+/', '', (string) ($r->celular ?? '')) ?? '';
+        if (strlen($cel) < 9 && preg_match('/\b(9\d{8})\b/', (string) ($r->mensaje ?? ''), $hit)) {
+            $cel = $hit[1];
+            $r->celular = $r->celular ?: $cel;
+        }
+        if (strlen($cel) === 9 && str_starts_with($cel, '9')) {
+            $cel = '51'.$cel;
+        }
+        $r->wa_url = strlen($cel) >= 11 ? 'https://wa.me/'.$cel : null;
+        $r->celular_fmt = $r->celular ?? null;
 
         return $r;
     }

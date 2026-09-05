@@ -44,7 +44,7 @@ class AsistenteController extends Controller
                 $data['complaint'] ?? []
             );
 
-            $this->logConsulta($data['message'], $result);
+            $this->logConsulta($data['message'], $result, $cliente);
 
             $actions = $result['actions'] ?? [];
             if ($actions === [] && ! empty($result['action'])) {
@@ -97,8 +97,7 @@ class AsistenteController extends Controller
         return $tokenable instanceof Cliente ? $tokenable : null;
     }
 
-    /** No corta el chat si falla. Omite saludos/gracias. */
-    private function logConsulta(string $message, array $result): void
+    private function logConsulta(string $message, array $result, ?Cliente $cliente = null): void
     {
         try {
             if (! Schema::hasTable('asistente_logs')) {
@@ -109,9 +108,7 @@ class AsistenteController extends Controller
                 return;
             }
             $logTipo = $result['log_tipo'] ?? '';
-            $queja = $result['queja_tipo'] ?? null;
             $wa = ! empty($result['action']) && (($result['action']['type'] ?? '') === 'whatsapp');
-            $pid = $result['pedido']['id_pedido'] ?? ($result['complaint']['pedido_id'] ?? null);
             // Pasos intermedios de la queja (detalle, pedido, celular): un solo log al WhatsApp.
             if ($logTipo === 'queja_espera') {
                 return;
@@ -133,6 +130,10 @@ class AsistenteController extends Controller
                 ];
             }
             $tipo = $logTipo !== '' ? $logTipo : ($wa ? 'whatsapp' : ($n > 0 ? 'catalogo' : 'sin_producto'));
+            $phone = preg_replace('/\D+/', '', (string) ($result['complaint']['phone'] ?? '')) ?? '';
+            if (strlen($phone) < 9 && $cliente) {
+                $phone = preg_replace('/\D+/', '', (string) ($cliente->telefono ?? '')) ?? '';
+            }
             $row = [
                 'mensaje' => mb_substr((string) ($result['log_mensaje'] ?? $message), 0, 500),
                 'tipo' => $tipo,
@@ -152,6 +153,18 @@ class AsistenteController extends Controller
             }
             if (Schema::hasColumn('asistente_logs', 'urgencia')) {
                 $row['urgencia'] = ! empty($result['urgencia']) ? 1 : 0;
+            }
+            if (Schema::hasColumn('asistente_logs', 'id_cliente') && $cliente) {
+                $row['id_cliente'] = (int) $cliente->id_cliente;
+            }
+            if (Schema::hasColumn('asistente_logs', 'cliente_nombre') && $cliente) {
+                $row['cliente_nombre'] = mb_substr(trim($cliente->nombre.' '.($cliente->apellido ?? '')), 0, 120);
+            }
+            if (Schema::hasColumn('asistente_logs', 'cliente_email') && $cliente) {
+                $row['cliente_email'] = mb_substr((string) $cliente->email, 0, 150);
+            }
+            if (Schema::hasColumn('asistente_logs', 'celular') && strlen($phone) >= 9) {
+                $row['celular'] = substr($phone, 0, 20);
             }
             DB::table('asistente_logs')->insert($row);
         } catch (\Throwable $e) {
