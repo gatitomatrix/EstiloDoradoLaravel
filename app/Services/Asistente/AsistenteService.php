@@ -211,6 +211,7 @@ DATOS FIJOS DE LA TIENDA (puedes usarlos siempre):
 REGLAS DE PRODUCTOS (estricto):
 1) Precios, stock y nombres SOLO del bloque "Productos encontrados".
 2) total_productos_activos = tamaño real del catálogo.
+2b) Si preguntan qué venden o cuántos productos: di que hay total_productos_activos y «Te recomendamos estos» (máximo 5 de Productos encontrados). No hagas un inventario largo; las tarjetas ya se muestran.
 3) Si esa lista NO está vacía, esos productos EXISTEN: dilo, cotiza y ofrece. PROHIBIDO "no tenemos" en ese caso.
 4) Lista vacía: no hay ese artículo. NO inventes Cerdita ni otro nombre. Invita a otra palabra o a Inicio.
 5) NUNCA digas que ya agregaste al carrito; invita al botón Agregar o a «quiero la [nombre]».
@@ -834,12 +835,12 @@ TXT;
         }
 
         if ($intent === 'catalog_count') {
-            return "En el catálogo activo hay {$catalogCount} productos. Puedes verlos todos en Inicio o preguntarme por un nombre (ej. cerdita, cajita, flores).";
+            return "Tenemos {$catalogCount} productos en el catálogo. Dime para quién es el detalle o un nombre (cajita, flores, billetera) y te recomiendo algunos.";
         }
 
         if ($intent === 'catalog') {
             if ($products === []) {
-                return "Tenemos {$catalogCount} productos activos en el catálogo. Ábrelo en Inicio de la app para verlos todos.";
+                return "Tenemos {$catalogCount} productos en el catálogo. Ábrelo en Inicio para verlos todos, o dime para quién buscas y te recomiendo algunos.";
             }
             $list = collect($products)->take(5)->map(function (Producto $p) {
                 return sprintf(
@@ -850,7 +851,7 @@ TXT;
                 );
             })->implode("\n");
 
-            return "Tenemos {$catalogCount} productos. Algunos:\n{$list}\nDime un nombre (cerdita, cajita, flores) o mira Inicio.";
+            return "Tenemos {$catalogCount} productos. Te recomendamos estos:\n{$list}\n¿Buscas para alguien en especial o dime un nombre (cajita, flores, billetera)?";
         }
 
         if ($pedido !== null) {
