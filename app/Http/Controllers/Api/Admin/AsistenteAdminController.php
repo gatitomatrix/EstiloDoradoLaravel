@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Cliente;
+use App\Models\Pedido;
 use App\Models\Producto;
 use App\Services\Asistente\WhatsappEscalation;
 use Carbon\Carbon;
@@ -185,6 +187,68 @@ class AsistenteAdminController extends Controller
                 'carritos' => array_sum($adds),
             ],
             'items' => $items,
+        ]);
+    }
+
+    public function fichaCliente(int $id)
+    {
+        $c = Cliente::query()->find($id);
+        if (! $c) {
+            return response()->json(['message' => 'No encontrado'], 404);
+        }
+
+        $pedidos = Pedido::query()
+            ->with(['detalles.producto'])
+            ->where('id_cliente', $id)
+            ->whereNotIn('estado', ['pendiente', 'cancelado'])
+            ->orderByDesc('id_pedido')
+            ->limit(5)
+            ->get();
+
+        $n = Pedido::query()
+            ->where('id_cliente', $id)
+            ->whereNotIn('estado', ['pendiente', 'cancelado'])
+            ->count();
+        $gasto = (float) Pedido::query()
+            ->where('id_cliente', $id)
+            ->whereNotIn('estado', ['pendiente', 'cancelado'])
+            ->sum('total');
+        $ultimo = $pedidos->first();
+
+        $list = [];
+        foreach ($pedidos as $p) {
+            $items = [];
+            foreach ($p->detalles as $d) {
+                $prod = $d->producto;
+                $items[] = [
+                    'nombre' => $prod?->nombre ?? 'Ítem',
+                    'cantidad' => (int) ($d->cantidad ?? 1),
+                    'imagen_url' => $prod?->imagen_url,
+                ];
+            }
+            $list[] = [
+                'id_pedido' => (int) $p->id_pedido,
+                'fecha' => optional($p->fecha_pedido)?->timezone('America/Lima')->format('d/m/Y H:i') ?: '',
+                'total' => number_format((float) $p->total, 2, '.', ''),
+                'estado' => $p->estado,
+                'items' => $items,
+            ];
+        }
+
+        $nombre = trim(($c->nombre ?? '').' '.($c->apellido ?? ''));
+
+        return response()->json([
+            'id_cliente' => (int) $c->id_cliente,
+            'nombre' => $nombre !== '' ? $nombre : 'Cliente',
+            'email' => $c->email,
+            'telefono' => $c->telefono ?? null,
+            'n_pedidos' => $n,
+            'total_gastado' => number_format($gasto, 2, '.', ''),
+            'ultimo_pedido' => $ultimo
+                ? optional($ultimo->fecha_pedido)?->timezone('America/Lima')->format('d/m/Y')
+                : null,
+            'frecuente' => $n >= 3,
+            'pedidos' => $list,
         ]);
     }
 }
