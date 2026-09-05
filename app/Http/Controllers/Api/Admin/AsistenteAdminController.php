@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Producto;
 use App\Services\Asistente\WhatsappEscalation;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -90,5 +91,98 @@ class AsistenteAdminController extends Controller
         }
 
         return $out;
+    }
+
+    public function interes()
+    {
+        $consultas = [];
+        if (Schema::hasTable('asistente_logs') && Schema::hasColumn('asistente_logs', 'productos_json')) {
+            $rows = DB::table('asistente_logs')
+                ->whereNotNull('productos_json')
+                ->orderByDesc('id')
+                ->limit(800)
+                ->get(['productos_json']);
+            foreach ($rows as $r) {
+                $j = json_decode((string) $r->productos_json, true);
+                if (! is_array($j)) {
+                    continue;
+                }
+                $seen = [];
+                foreach ($j as $p) {
+                    if (! is_array($p)) {
+                        continue;
+                    }
+                    $id = (int) ($p['id'] ?? 0);
+                    if ($id < 1 || isset($seen[$id])) {
+                        continue;
+                    }
+                    $seen[$id] = true;
+                    $consultas[$id] = ($consultas[$id] ?? 0) + 1;
+                }
+            }
+        }
+
+        $likes = [];
+        $dislikes = [];
+        $adds = [];
+        if (Schema::hasTable('asistente_feedback')) {
+            $fb = DB::table('asistente_feedback')
+                ->select('id_producto', 'voto', DB::raw('COUNT(*) as c'))
+                ->groupBy('id_producto', 'voto')
+                ->get();
+            foreach ($fb as $row) {
+                $id = (int) $row->id_producto;
+                $c = (int) $row->c;
+                if ($row->voto === 'up') {
+                    $likes[$id] = $c;
+                } elseif ($row->voto === 'down') {
+                    $dislikes[$id] = $c;
+                } elseif ($row->voto === 'add') {
+                    $adds[$id] = $c;
+                }
+            }
+        }
+
+        $ids = array_values(array_unique(array_merge(
+            array_keys($consultas),
+            array_keys($likes),
+            array_keys($adds)
+        )));
+        $prods = $ids
+            ? Producto::query()->whereIn('id_producto', $ids)->get()->keyBy('id_producto')
+            : collect();
+
+        $items = [];
+        foreach ($ids as $id) {
+            $p = $prods->get($id);
+            $items[] = [
+                'id' => $id,
+                'nombre' => $p?->nombre ?? ('Producto #'.$id),
+                'imagen_url' => $p?->imagen_url,
+                'precio' => $p ? (float) $p->precio_venta : null,
+                'stock' => $p ? (int) $p->stock : null,
+                'consultas' => (int) ($consultas[$id] ?? 0),
+                'likes' => (int) ($likes[$id] ?? 0),
+                'dislikes' => (int) ($dislikes[$id] ?? 0),
+                'carritos' => (int) ($adds[$id] ?? 0),
+            ];
+        }
+        usort($items, function ($a, $b) {
+            if ($b['consultas'] !== $a['consultas']) {
+                return $b['consultas'] <=> $a['consultas'];
+            }
+
+            return $b['likes'] <=> $a['likes'];
+        });
+
+        return response()->json([
+            'stats' => [
+                'productos' => count($items),
+                'consultas' => array_sum($consultas),
+                'likes' => array_sum($likes),
+                'carritos' => array_sum($adds),
+            ],
+            'items' => $items,
+        ]);
     }
 }

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Cliente;
+use App\Models\Producto;
 use App\Services\Asistente\AsistenteService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -77,6 +78,31 @@ class AsistenteController extends Controller
                 'action' => null,
             ], 500);
         }
+    }
+
+    public function feedback(Request $request)
+    {
+        $data = $request->validate([
+            'id_producto' => 'required|integer|min:1',
+            'voto' => 'required|in:up,down,add',
+        ]);
+        if (! Producto::query()->where('id_producto', $data['id_producto'])->exists()) {
+            return response()->json(['ok' => false, 'message' => 'Producto no existe'], 404);
+        }
+        if (! Schema::hasTable('asistente_feedback')) {
+            return response()->json(['ok' => true, 'skipped' => true]);
+        }
+        try {
+            DB::table('asistente_feedback')->insert([
+                'id_producto' => (int) $data['id_producto'],
+                'voto' => $data['voto'],
+                'created_at' => now(),
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('[asistente-feedback] '.$e->getMessage());
+        }
+
+        return response()->json(['ok' => true]);
     }
 
     private function resolveCliente(Request $request): ?Cliente

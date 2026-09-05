@@ -49,6 +49,7 @@ Route::get('ping', fn() => 'pong');
 
 // Asistente IA / chatbot (público; si hay Bearer token de cliente, puede ver sus pedidos)
 Route::post('asistente', [AsistenteController::class, 'chat']);
+Route::post('asistente/feedback', [AsistenteController::class, 'feedback']);
 // opcional autenticado (mismo handler; Sanctum rellena user si hay token)
 Route::middleware(['auth:sanctum', 'abilities:client'])->post('asistente/auth', [AsistenteController::class, 'chat']);
 
@@ -202,6 +203,7 @@ Route::prefix('admin')->middleware(['auth:sanctum','abilities:admin'])->group(fu
         Route::get('reportes/stock-bajo.{ext}',  [ReporteAdminController::class, 'stockBajo'])->where('ext', 'xlsx|csv|pdf');
         Route::get('auditoria',                  [AuditoriaAdminController::class, 'index']);
         Route::get('asistente-logs',             [AsistenteAdminController::class, 'index']);
+        Route::get('asistente-interes',          [AsistenteAdminController::class, 'interes']);
     });
 
         // Route::get('events/stream', [AdminEventsController::class, 'stream']);
