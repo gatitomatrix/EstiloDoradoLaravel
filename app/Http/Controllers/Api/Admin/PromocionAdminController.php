@@ -43,6 +43,7 @@ class PromocionAdminController extends Controller
         $row = Promocion::query()->orderByDesc('id')->first() ?? new Promocion();
         $row->fill($data);
         $row->save();
+        \App\Services\PrecioService::forgetCampana();
 
         return response()->json($row);
     }

@@ -7,10 +7,23 @@ use App\Models\Promocion;
 
 class PrecioService
 {
+    /** Una sola lectura de promociones por request (evita N consultas a Alwaysdata). */
+    private static mixed $campanaCache = false;
+
     private mixed $campana = false;
+
+    public static function forgetCampana(): void
+    {
+        self::$campanaCache = false;
+    }
 
     public function campanaActiva(): ?Promocion
     {
+        if (self::$campanaCache !== false) {
+            $this->campana = self::$campanaCache;
+
+            return self::$campanaCache;
+        }
         if ($this->campana !== false) {
             return $this->campana;
         }
@@ -23,6 +36,7 @@ class PrecioService
         } catch (\Throwable $e) {
             $this->campana = null;
         }
+        self::$campanaCache = $this->campana;
 
         return $this->campana;
     }

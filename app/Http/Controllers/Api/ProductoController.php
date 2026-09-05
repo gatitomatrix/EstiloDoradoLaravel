@@ -81,6 +81,9 @@ class ProductoController extends Controller
         }
 
         try {
+            // Una lectura de campaña para todo el listado (antes ~3 queries/producto a Alwaysdata).
+            app(\App\Services\PrecioService::class)->campanaActiva();
+
             return $q->orderByDesc('id_producto')->get();
         } catch (\Throwable $e) {
             $q = Producto::query()->select([
