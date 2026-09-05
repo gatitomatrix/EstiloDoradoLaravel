@@ -25,6 +25,13 @@ class AsistenteService
         if ($awaiting === 'complaint_phone') {
             return $this->complaints->takePhone($message, $cliente, $complaint);
         }
+        if ($awaiting === 'complaint_phone_confirm') {
+            if (! $cliente) {
+                return $this->complaints->takePhone($message, null, $complaint);
+            }
+
+            return $this->complaints->confirmProfilePhone($message, $cliente, $complaint);
+        }
         if ($awaiting === 'complaint_order') {
             if (! $cliente) {
                 return $this->complaints->afterTipo($complaint['tipo'] ?? 'otro', $message, null, $complaint);

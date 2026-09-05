@@ -83,6 +83,10 @@ class ComplaintFlow
             $digits = preg_replace('/\D+/', '', $message) ?? '';
             if (strlen($digits) === 9 && str_starts_with($digits, '9')) {
                 $ctx['phone'] = $digits;
+                if ($cliente && empty($cliente->telefono)) {
+                    $cliente->telefono = $digits;
+                    $cliente->save();
+                }
             } elseif (strlen($digits) >= 11) {
                 $ctx['phone'] = $digits;
             } else {
@@ -124,15 +128,25 @@ class ComplaintFlow
     private function maybePhone(string $tipo, string $message, Cliente $cliente, array $ctx, bool $sinPedidos = false): array
     {
         $tel = preg_replace('/\D+/', '', (string) ($cliente->telefono ?? '')) ?? '';
-        if (strlen($tel) >= 9) {
-            $ctx['phone'] = $tel;
-
-            return $this->finish($tipo, $message, $cliente, $ctx, $sinPedidos);
-        }
-
         $intro = $sinPedidos
             ? 'No veo pedidos pagados en esta cuenta. '
             : 'Pedido anotado. ';
+
+        if (strlen($tel) >= 9) {
+            $ctx['phone'] = $tel;
+            $mostrar = $this->formatPhone($tel);
+
+            return $this->pack(
+                $intro.'En tu perfil tienes el '.$mostrar.'. ¿Te contactamos a ese número? Responde «sí», dime otro de 9 dígitos, o «no» para WhatsApp.',
+                [
+                    'awaiting' => 'complaint_phone_confirm',
+                    'log_tipo' => 'queja_espera',
+                    'queja_tipo' => $tipo,
+                    'urgencia' => true,
+                    'complaint' => $ctx,
+                ]
+            );
+        }
 
         return $this->pack(
             $intro.'Para una atención más rápida, ¿a qué celular te escribimos? (9 dígitos). Si prefieres, escribe «no» y te dejo WhatsApp.',
@@ -144,6 +158,31 @@ class ComplaintFlow
                 'complaint' => $ctx,
             ]
         );
+    }
+
+    public function confirmProfilePhone(string $message, Cliente $cliente, array $ctx): array
+    {
+        $m = mb_strtolower(trim($message));
+        if (preg_match('/^(s[ií]|ok|dale|ese|ese mismo|correcto|confirmo)\b/u', $m)) {
+            $tel = preg_replace('/\D+/', '', (string) ($ctx['phone'] ?? $cliente->telefono ?? '')) ?? '';
+            if (strlen($tel) >= 9) {
+                $ctx['phone'] = $tel;
+            }
+
+            return $this->finish($ctx['tipo'] ?? 'otro', $message, $cliente, $ctx);
+        }
+
+        return $this->takePhone($message, $cliente, $ctx);
+    }
+
+    private function formatPhone(string $digits): string
+    {
+        $d = preg_replace('/\D+/', '', $digits) ?? '';
+        if (strlen($d) === 9) {
+            return substr($d, 0, 3).' '.substr($d, 3, 3).' '.substr($d, 6);
+        }
+
+        return $d;
     }
 
     private function finish(string $tipo, string $message, ?Cliente $cliente, array $ctx, bool $sinPedidos = false): array
