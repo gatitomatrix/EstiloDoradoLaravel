@@ -29,7 +29,7 @@ class ReporteAdminController extends Controller
                 $c->telefono,
                 $c->email,
                 $c->direccion,
-                optional($c->created_at)->format('Y-m-d H:i:s') ?? (string) $c->created_at,
+                $this->fecha($c->created_at),
             ])
             ->all();
 
@@ -44,16 +44,17 @@ class ReporteAdminController extends Controller
 
     public function productos(string $ext, Request $request)
     {
-        $headers = ['ID', 'Nombre', 'Descripción', 'Precio compra', 'Precio venta', 'Stock', 'Estado'];
+        $headers = ['ID', 'Nombre', 'Categoría', 'Precio compra (S/)', 'Precio venta (S/)', 'Stock', 'Estado'];
         $rows = Producto::query()
+            ->with('categoria:id_categoria,nombre')
             ->orderBy('id_producto')
             ->get()
             ->map(fn ($p) => [
                 $p->id_producto,
                 $p->nombre,
-                $p->descripcion,
-                $p->precio_compra,
-                $p->precio_venta,
+                $p->categoria?->nombre ?? '—',
+                $this->soles($p->precio_compra),
+                $this->soles($p->precio_venta),
                 $p->stock,
                 $p->estado,
             ])
@@ -70,22 +71,25 @@ class ReporteAdminController extends Controller
 
     public function pedidos(string $ext, Request $request)
     {
-        $headers = ['ID', 'Cliente', 'Estado', 'Total', 'Forma de pago', 'Fecha', 'Dirección entrega'];
+        $headers = ['ID', 'Cliente', 'Estado', 'Total (S/)', 'Forma de pago', 'Fecha', 'Comprobante', 'Entrega'];
         $rows = Pedido::query()
             ->with('cliente')
             ->orderByDesc('id_pedido')
             ->get()
             ->map(function ($p) {
                 $cliente = trim(($p->cliente->nombre ?? '').' '.($p->cliente->apellido ?? ''));
+                $comp = trim(($p->comprobante_tipo ?? '').' '.($p->comprobante_serie ?? '').'-'.($p->comprobante_numero ?? ''));
+                $comp = trim(str_replace('--', '-', $comp), '- ');
 
                 return [
                     $p->id_pedido,
                     $cliente !== '' ? $cliente : ('#'.$p->id_cliente),
                     $p->estado,
-                    $p->total,
-                    $p->forma_pago,
-                    optional($p->fecha_pedido)->format('Y-m-d H:i:s') ?? (string) $p->fecha_pedido,
-                    $p->direccion_entrega,
+                    $this->soles($p->total),
+                    $p->forma_pago ?: '—',
+                    $this->fecha($p->fecha_pedido),
+                    $comp !== '' ? $comp : '—',
+                    $p->direccion_entrega ?: 'Recojo en tienda',
                 ];
             })
             ->all();
@@ -107,20 +111,13 @@ class ReporteAdminController extends Controller
             ->orderByDesc('id_movimiento')
             ->get()
             ->map(function ($m) {
-                $fecha = $m->fecha
-                    ?? $m->fecha_movimiento
-                    ?? null;
-                if ($fecha instanceof \DateTimeInterface) {
-                    $fecha = $fecha->format('Y-m-d H:i:s');
-                }
-
                 return [
                     $m->id_movimiento,
-                    $m->producto?->nombre,
+                    $m->producto?->nombre ?? '—',
                     $m->tipo_movimiento,
                     $m->cantidad,
-                    $m->empleado?->nombre,
-                    $fecha,
+                    $m->empleado?->nombre ?? '—',
+                    $this->fecha($m->fecha ?? $m->fecha_movimiento ?? null),
                     $m->observacion ?? '',
                 ];
             })
@@ -149,27 +146,24 @@ class ReporteAdminController extends Controller
     public function financieroExport(string $ext, Request $request)
     {
         $data = $this->buildFinanciero($request);
-        $headers = ['Concepto', 'Valor'];
+        $k = $data['kpis'];
+        $headers = ['Indicador', 'Periodo desde', 'Periodo hasta', 'Cantidad', 'Monto (S/)'];
         $rows = [
-            ['Desde', $data['desde']],
-            ['Hasta', $data['hasta']],
-            ['Pedidos cobrados', $data['kpis']['pedidos_cobrados']],
-            ['Ingresos (S/)', $data['kpis']['ingresos']],
-            ['Ticket promedio (S/)', $data['kpis']['ticket_promedio']],
-            ['Costo estimado (S/)', $data['kpis']['costo_estimado']],
-            ['Margen estimado (S/)', $data['kpis']['margen_estimado']],
-            ['Pedidos pendientes', $data['kpis']['pendientes']],
-            ['Pedidos cancelados', $data['kpis']['cancelados']],
-            ['Monto cancelado (S/)', $data['kpis']['monto_cancelado']],
+            ['Ingresos cobrados', $data['desde'], $data['hasta'], $k['pedidos_cobrados'], $this->soles($k['ingresos'])],
+            ['Ticket promedio', $data['desde'], $data['hasta'], $k['pedidos_cobrados'], $this->soles($k['ticket_promedio'])],
+            ['Costo estimado', $data['desde'], $data['hasta'], $k['pedidos_cobrados'], $this->soles($k['costo_estimado'])],
+            ['Margen estimado', $data['desde'], $data['hasta'], $k['pedidos_cobrados'], $this->soles($k['margen_estimado'])],
+            ['Pedidos pendientes', $data['desde'], $data['hasta'], $k['pendientes'], '—'],
+            ['Pedidos cancelados', $data['desde'], $data['hasta'], $k['cancelados'], $this->soles($k['monto_cancelado'])],
         ];
         foreach ($data['por_pago'] as $p) {
-            $rows[] = ['Pago: '.$p['metodo'].' ('.$p['pedidos'].' pedidos)', $p['total']];
-        }
-        foreach ($data['por_dia'] as $d) {
-            $rows[] = ['Día '.$d['fecha'].' ('.$d['pedidos'].' pedidos)', $d['total']];
-        }
-        foreach ($data['top_productos'] as $p) {
-            $rows[] = ['Top: '.$p['nombre'].' (und. '.$p['unidades'].')', $p['importe']];
+            $rows[] = [
+                'Pago: '.$p['metodo'],
+                $data['desde'],
+                $data['hasta'],
+                $p['pedidos'],
+                $this->soles($p['total']),
+            ];
         }
 
         return $this->export->download(
@@ -184,12 +178,24 @@ class ReporteAdminController extends Controller
     public function ventasDia(string $ext, Request $request)
     {
         $data = $this->buildFinanciero($request);
-        $rows = array_map(fn ($d) => [$d['fecha'], $d['pedidos'], $d['total']], $data['por_dia']);
+        $nombres = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+        $rows = array_map(function ($d) use ($nombres) {
+            $c = Carbon::parse($d['fecha']);
+            $ticket = ((int) $d['pedidos']) > 0 ? ((float) $d['total'] / (int) $d['pedidos']) : 0;
+
+            return [
+                $c->format('d/m/Y'),
+                $nombres[$c->dayOfWeek] ?? '',
+                $d['pedidos'],
+                $this->soles($d['total']),
+                $this->soles($ticket),
+            ];
+        }, $data['por_dia']);
 
         return $this->export->download(
             'reporte_ventas_dia',
             'Ventas por día — Estilo Dorado',
-            ['Fecha', 'Pedidos', 'Total (S/)'],
+            ['Fecha', 'Día', 'Pedidos', 'Total (S/)', 'Ticket promedio (S/)'],
             $rows,
             $ext
         );
@@ -198,12 +204,24 @@ class ReporteAdminController extends Controller
     public function formaPago(string $ext, Request $request)
     {
         $data = $this->buildFinanciero($request);
-        $rows = array_map(fn ($p) => [$p['metodo'], $p['pedidos'], $p['total']], $data['por_pago']);
+        $ingresos = (float) ($data['kpis']['ingresos'] ?? 0);
+        $rows = array_map(function ($p) use ($ingresos, $data) {
+            $ticket = ((int) $p['pedidos']) > 0 ? ((float) $p['total'] / (int) $p['pedidos']) : 0;
+
+            return [
+                $p['metodo'] ?: 'otro',
+                $data['desde'].' a '.$data['hasta'],
+                $p['pedidos'],
+                $this->soles($p['total']),
+                $this->soles($ticket),
+                $this->pct((float) $p['total'], $ingresos),
+            ];
+        }, $data['por_pago']);
 
         return $this->export->download(
             'reporte_forma_pago',
             'Ventas por forma de pago — Estilo Dorado',
-            ['Forma de pago', 'Pedidos', 'Total (S/)'],
+            ['Forma de pago', 'Periodo', 'Pedidos', 'Total (S/)', 'Ticket (S/)', '% del ingreso'],
             $rows,
             $ext
         );
@@ -212,15 +230,26 @@ class ReporteAdminController extends Controller
     public function topProductos(string $ext, Request $request)
     {
         $data = $this->buildFinanciero($request);
-        $rows = array_map(
-            fn ($p) => [$p['id'], $p['nombre'], $p['unidades'], $p['importe']],
-            $data['top_productos']
-        );
+        $ingresos = (float) ($data['kpis']['ingresos'] ?? 0);
+        $rows = array_map(function ($p) use ($ingresos) {
+            $und = (int) $p['unidades'];
+            $imp = (float) $p['importe'];
+            $prom = $und > 0 ? $imp / $und : 0;
+
+            return [
+                $p['id'],
+                $p['nombre'],
+                $und,
+                $this->soles($imp),
+                $this->soles($prom),
+                $this->pct($imp, $ingresos),
+            ];
+        }, $data['top_productos']);
 
         return $this->export->download(
             'reporte_top_productos',
             'Productos que más facturaron — Estilo Dorado',
-            ['ID', 'Producto', 'Unidades', 'Importe (S/)'],
+            ['ID', 'Producto', 'Unidades', 'Importe (S/)', 'Precio prom. (S/)', '% de ventas'],
             $rows,
             $ext
         );
@@ -234,7 +263,7 @@ class ReporteAdminController extends Controller
             $threshold = 10;
         }
 
-        $headers = ['ID', 'Nombre', 'Stock', 'Precio venta', 'Estado', 'Categoría'];
+        $headers = ['ID', 'Nombre', 'Categoría', 'Stock', 'A reponer', 'Precio venta (S/)', 'Estado'];
         $rows = Producto::query()
             ->with('categoria:id_categoria,nombre')
             ->where('stock', '<=', $threshold)
@@ -243,10 +272,11 @@ class ReporteAdminController extends Controller
             ->map(fn ($p) => [
                 $p->id_producto,
                 $p->nombre,
+                $p->categoria?->nombre ?? '—',
                 $p->stock,
-                $p->precio_venta,
+                max(0, $threshold - (int) $p->stock),
+                $this->soles($p->precio_venta),
                 $p->estado,
-                $p->categoria?->nombre ?? '',
             ])
             ->all();
 
@@ -360,5 +390,35 @@ class ReporteAdminController extends Controller
             'por_dia' => $porDia,
             'top_productos' => $top,
         ];
+    }
+
+    private function soles(mixed $n): string
+    {
+        return 'S/ '.number_format((float) $n, 2, '.', ',');
+    }
+
+    private function fecha(mixed $d): string
+    {
+        if ($d === null || $d === '') {
+            return '';
+        }
+        try {
+            $c = $d instanceof \DateTimeInterface
+                ? Carbon::instance(\Carbon\Carbon::parse($d))
+                : Carbon::parse((string) $d);
+
+            return $c->timezone('America/Lima')->format('d/m/Y H:i');
+        } catch (\Throwable) {
+            return (string) $d;
+        }
+    }
+
+    private function pct(float $part, float $whole): string
+    {
+        if ($whole <= 0) {
+            return '0 %';
+        }
+
+        return number_format($part / $whole * 100, 1, '.', ',').' %';
     }
 }
