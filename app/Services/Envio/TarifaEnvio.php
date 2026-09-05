@@ -64,12 +64,15 @@ class TarifaEnvio
         ];
     }
 
+    public const DIRECCION_TIENDA = 'Prolongación Yauli Nro. S/N Pasco - Pasco – Chaupimarca.';
+
     public static function recojo(): array
     {
         return [
             'costo' => 0.0,
             'zona' => 'tienda',
             'etiqueta' => 'Recojo en tienda',
+            'direccion' => self::DIRECCION_TIENDA,
         ];
     }
 
