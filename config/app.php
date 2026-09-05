@@ -56,10 +56,9 @@ return [
 
     /*
     | URL de la tienda (enlaces en correos: bienvenida, recuperar clave).
-    | Render: https://estilo-dorado-web.onrender.com
     | Dominio: https://estilodorado.net.pe
     */
-    'frontend_url' => rtrim((string) env('FRONTEND_URL', 'https://estilo-dorado-web.onrender.com'), '/'),
+    'frontend_url' => rtrim((string) env('FRONTEND_URL', 'https://estilodorado.net.pe'), '/'),
 
     /*
     |--------------------------------------------------------------------------
