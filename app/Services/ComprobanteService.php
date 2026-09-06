@@ -72,17 +72,21 @@ class ComprobanteService
         $tipo    = $pedido->comprobante_tipo;      // 'FA' | 'BO'
         $tipoDocCpe = $tipo === 'FA' ? '01' : '03';
 
-        // -------- Cliente (de los datos que vienen del front) --------
+        $pedido->loadMissing(['cliente', 'detalles.producto']);
+        $cuenta = $pedido->cliente;
+        $nombreCuenta = trim(trim((string) ($cuenta->nombre ?? '')).' '.trim((string) ($cuenta->apellido ?? '')));
+        $dirCuenta = trim((string) ($pedido->direccion_entrega ?: ($cuenta->direccion ?? '')));
+
         if ($tipo === 'FA') {
             $cliTipoDoc  = '6';
-            $cliNumDoc   = $payload['factura']['ruc'] ?? '00000000000';
-            $cliNombre   = $payload['factura']['razonSocial'] ?? 'CLIENTE FACTURA';
-            $cliDir      = $payload['factura']['direccion'] ?? '-';
+            $cliNumDoc   = preg_replace('/\D+/', '', (string) ($payload['factura']['ruc'] ?? '')) ?: '00000000000';
+            $cliNombre   = trim((string) ($payload['factura']['razonSocial'] ?? '')) ?: ($nombreCuenta ?: 'CLIENTE');
+            $cliDir      = trim((string) ($payload['factura']['direccion'] ?? '')) ?: ($dirCuenta !== '' ? $dirCuenta : '-');
         } else {
             $cliTipoDoc  = '1';
-            $cliNumDoc   = $payload['boleta']['dni'] ?? '00000000';
-            $cliNombre   = $payload['boleta']['nombres'] ?? 'CLIENTE BOLETA';
-            $cliDir      = $payload['boleta']['direccion'] ?? '-';
+            $cliNumDoc   = preg_replace('/\D+/', '', (string) ($payload['boleta']['dni'] ?? '')) ?: '00000000';
+            $cliNombre   = trim((string) ($payload['boleta']['nombres'] ?? '')) ?: ($nombreCuenta ?: 'CLIENTE');
+            $cliDir      = trim((string) ($payload['boleta']['direccion'] ?? '')) ?: ($dirCuenta !== '' ? $dirCuenta : '-');
         }
 
         $client = (new Client())
@@ -262,7 +266,24 @@ class ComprobanteService
             : null;
 
         // -------- PDF desde Blade --------
-        $pdfRel = "comprobantes/pdf/{$tipoCarpeta}/{$serie}/{$friendly}.pdf";
+        $pdfRel = "comprobantes/pdf/{$tipoCarpeta}/{$serie}/{$pedido->id_pedido}-{$friendly}.pdf";
+        $pdfItems = [];
+        foreach ($pedido->detalles as $d) {
+            $pdfItems[] = (object) [
+                'id_producto' => $d->id_producto,
+                'producto' => (object) ['nombre' => $d->producto?->nombre ?? ('Producto #'.$d->id_producto)],
+                'cantidad' => $d->cantidad,
+                'precio_unitario' => $d->precio_unitario,
+            ];
+        }
+        if ($envioCosto > 0) {
+            $pdfItems[] = (object) [
+                'id_producto' => 'ENVIO',
+                'producto' => (object) ['nombre' => $envioEtiqueta],
+                'cantidad' => 1,
+                'precio_unitario' => $envioCosto,
+            ];
+        }
         $html = View::make('fe.comprobante', [
             'tipo'         => $tipo,                   // 'FA'/'BO'
             'serie'        => $serie,
@@ -285,7 +306,7 @@ class ComprobanteService
             'mto_igv'      => number_format($mtoIGV, 2, '.', ''),
             'mto_total'    => number_format($mtoTotal, 2, '.', ''),
             'legend'       => 'SON: '.$this->montoEnLetras($mtoTotal).' SOLES',
-            'items'        => $pedido->detalles()->with('producto')->get(),
+            'items'        => $pdfItems,
             'hash'         => $hash,
             'qrB64'        => $qrB64,
             'logoB64'      => $logoB64,
