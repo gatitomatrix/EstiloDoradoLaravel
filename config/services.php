@@ -54,12 +54,14 @@ return [
         'prov'       => env('EMP_PROV', 'Pasco'),
         'dist'       => env('EMP_DIST', 'Chaupimarca'),
     ],
-    'enabled'   => env('GEO_ENABLED', true),
-    'base'      => env('GEO_NOMINATIM_BASE', 'https://nominatim.openstreetmap.org'),
-    'email'     => env('GEO_CONTACT_EMAIL'),
-    'verify'    => env('GEO_VERIFY_SSL', true),
-    'timeout'   => env('GEO_TIMEOUT', 5),
-    'cache_min' => env('GEO_CACHE_MIN', 1440),
+
+    'geo' => [
+        'enabled'   => env('GEO_ENABLED', true),
+        'base'      => env('GEO_NOMINATIM_BASE', 'https://nominatim.openstreetmap.org'),
+        'email'     => env('GEO_CONTACT_EMAIL'),
+        'verify'    => env('GEO_VERIFY_SSL', true),
+        'timeout'   => env('GEO_TIMEOUT', 5),
+        'cache_min' => env('GEO_CACHE_MIN', 1440),
     ],
 
 ];
