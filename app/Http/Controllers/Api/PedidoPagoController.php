@@ -451,11 +451,11 @@ class PedidoPagoController extends Controller
         $pdfUrl = null;
         $xmlUrl = null;
         $cdrUrl = null;
-        if ($emitido) {
+        if ($p->sunat_pdf || $p->sunat_xml || $p->sunat_cdr) {
             try {
-                $pdfUrl = $p->sunat_pdf ? route('fe.pdf', ['tipo' => $tipo, 'serie' => $serie, 'name' => "{$friendly}.pdf"]) : null;
-                $xmlUrl = $p->sunat_xml ? route('fe.xml', ['tipo' => $tipo, 'serie' => $serie, 'name' => "{$friendly}.xml"]) : null;
-                $cdrUrl = $p->sunat_cdr ? route('fe.cdr', ['tipo' => $tipo, 'name'  => "R-{$friendly}.zip"]) : null;
+                $pdfUrl = $p->sunat_pdf ? route('fe.pedido.file', ['id' => $p->id_pedido, 'kind' => 'pdf']) : null;
+                $xmlUrl = $p->sunat_xml ? route('fe.pedido.file', ['id' => $p->id_pedido, 'kind' => 'xml']) : null;
+                $cdrUrl = $p->sunat_cdr ? route('fe.pedido.file', ['id' => $p->id_pedido, 'kind' => 'cdr']) : null;
             } catch (\Throwable $e) {
                 $pdfUrl = $p->sunat_pdf;
                 $xmlUrl = $p->sunat_xml;

@@ -266,6 +266,10 @@ Route::match(['GET','HEAD'],'fe/cdr/{tipo}/{name}', function ($tipo, $name) {
     ]);
 })->name('fe.cdr');
 
+Route::match(['GET','HEAD'],'fe/pedido/{id}/{kind}', [\App\Http\Controllers\Api\FeController::class, 'pedidoFile'])
+    ->where('kind', 'pdf|xml|cdr')
+    ->name('fe.pedido.file');
+
 Route::match(['GET','HEAD'],'fe/pdf/{tipo}/{serie}/{name}', function ($tipo, $serie, $name) {
     if (!in_array($tipo, ['FA','BO'])) {
         return response()->json(['message' => 'Tipo inválido.'], 404)
@@ -273,8 +277,8 @@ Route::match(['GET','HEAD'],'fe/pdf/{tipo}/{serie}/{name}', function ($tipo, $se
             ->header('Access-Control-Allow-Methods', 'GET,HEAD,OPTIONS')
             ->header('Access-Control-Allow-Headers', '*');
     }
-    $path = "comprobantes/pdf/{$tipo}/{$serie}/{$name}";
-    if (!Storage::disk('public')->exists($path)) {
+    $path = \App\Http\Controllers\Api\FeController::resolvePrefixed("comprobantes/pdf/{$tipo}/{$serie}", $name);
+    if (!$path) {
         return response()->json(['message' => 'PDF no disponible.'], 404)
             ->header('Access-Control-Allow-Origin', '*')
             ->header('Access-Control-Allow-Methods', 'GET,HEAD,OPTIONS')
@@ -283,9 +287,9 @@ Route::match(['GET','HEAD'],'fe/pdf/{tipo}/{serie}/{name}', function ($tipo, $se
     return response(Storage::disk('public')->get($path), 200, [
         'Content-Type' => 'application/pdf',
         'Content-Disposition' => 'inline; filename="'.$name.'"',
-        'Access-Control-Allow-Origin', '*',
-        'Access-Control-Allow-Methods', 'GET,HEAD,OPTIONS',
-        'Access-Control-Allow-Headers', '*',
+        'Access-Control-Allow-Origin' => '*',
+        'Access-Control-Allow-Methods' => 'GET,HEAD,OPTIONS',
+        'Access-Control-Allow-Headers' => '*',
     ]);
 })->name('fe.pdf');
 

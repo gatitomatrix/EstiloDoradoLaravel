@@ -221,13 +221,13 @@ class ComprobanteService
             $lastXml = $see->getLastXml();
         }
 
-        $xmlRel = "comprobantes/xml/{$tipoCarpeta}/{$serie}/{$friendly}.xml";
+        $xmlRel = "comprobantes/xml/{$tipoCarpeta}/{$serie}/{$pedido->id_pedido}-{$friendly}.xml";
         Storage::disk('public')->put($xmlRel, $lastXml ?: '<xml/>');
 
         // CDR
         $cdrRel = null;
         if ($result->getCdrZip()) {
-            $cdrRel = "comprobantes/cdr/{$tipoCarpeta}/R-{$friendly}.zip";
+            $cdrRel = "comprobantes/cdr/{$tipoCarpeta}/{$pedido->id_pedido}-R-{$friendly}.zip";
             Storage::disk('public')->put($cdrRel, $result->getCdrZip());
         }
 
@@ -255,17 +255,20 @@ class ComprobanteService
             'scale'      => 3, // tamaño
             'eccLevel'   => ChilliQRCode::ECC_M,
         ]);
-        $qrPng   = (new ChilliQRCode($qrOptions))->render($qrText);
-        $qrB64   = 'data:image/png;base64,'.base64_encode($qrPng);
+        $qrRaw = (new ChilliQRCode($qrOptions))->render($qrText);
+        $qrB64 = is_string($qrRaw) && str_starts_with($qrRaw, 'data:')
+            ? $qrRaw
+            : 'data:image/png;base64,'.base64_encode((string) $qrRaw);
 
-        // -------- Logo en base64 (para Dompdf) --------
-        // usa tu logo local: public/Brand/logo_edorado.jpeg
-        $logoPath = public_path('Brand/logo_edorado.jpeg');
-        $logoB64  = file_exists($logoPath)
-            ? 'data:image/jpeg;base64,'.base64_encode(file_get_contents($logoPath))
-            : null;
+        $logoB64 = null;
+        foreach (['brand/logo_edorado.jpeg', 'Brand/logo_edorado.jpeg', 'brand/logo_edorado.jpg'] as $relLogo) {
+            $logoPath = public_path($relLogo);
+            if (is_file($logoPath)) {
+                $logoB64 = 'data:image/jpeg;base64,'.base64_encode((string) file_get_contents($logoPath));
+                break;
+            }
+        }
 
-        // -------- PDF desde Blade --------
         $pdfRel = "comprobantes/pdf/{$tipoCarpeta}/{$serie}/{$pedido->id_pedido}-{$friendly}.pdf";
         $pdfItems = [];
         foreach ($pedido->detalles as $d) {

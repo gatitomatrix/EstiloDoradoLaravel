@@ -310,9 +310,9 @@ class PedidoAdminController extends Controller
         $friendly = "{$serie}-{$num8}";
 
         return [
-            'pdf' => route('fe.pdf', ['tipo'=>$tipo, 'serie'=>$serie, 'name'=> "{$friendly}.pdf"]),
-            'xml' => route('fe.xml', ['tipo'=>$tipo, 'serie'=>$serie, 'name'=> "{$friendly}.xml"]),
-            'cdr' => route('fe.cdr', ['tipo'=>$tipo, 'name'=> "R-{$friendly}.zip"]),
+            'pdf' => $pedido->sunat_pdf ? route('fe.pedido.file', ['id' => $pedido->id_pedido, 'kind' => 'pdf']) : null,
+            'xml' => $pedido->sunat_xml ? route('fe.pedido.file', ['id' => $pedido->id_pedido, 'kind' => 'xml']) : null,
+            'cdr' => $pedido->sunat_cdr ? route('fe.pedido.file', ['id' => $pedido->id_pedido, 'kind' => 'cdr']) : null,
         ];
     }
 

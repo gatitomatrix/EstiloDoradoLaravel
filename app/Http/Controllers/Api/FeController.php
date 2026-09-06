@@ -65,12 +65,70 @@ class FeController extends Controller
         return response()->download(storage_path("app/{$path}"));
     }
 
-    public function pdf($name)
+    public function pedidoFile($id, $kind)
     {
-        $path = "fe/pdf/{$name}.pdf";
-        abort_unless(Storage::disk('local')->exists($path), 404);
-        return response()->file(storage_path("app/{$path}"), [
-            'Content-Type' => 'application/pdf'
+        $kind = strtolower((string) $kind);
+        if (!in_array($kind, ['pdf', 'xml', 'cdr'], true)) {
+            return $this->feFileResponse(null, 404, 'Tipo inválido.');
+        }
+        $pedido = \App\Models\Pedido::find($id);
+        if (!$pedido) {
+            return $this->feFileResponse(null, 404, 'Pedido no encontrado.');
+        }
+        $rel = match ($kind) {
+            'pdf' => $pedido->sunat_pdf,
+            'xml' => $pedido->sunat_xml,
+            'cdr' => $pedido->sunat_cdr,
+            default => null,
+        };
+        if (!$rel || !Storage::disk('public')->exists($rel)) {
+            return $this->feFileResponse(null, 404, 'Archivo no disponible.');
+        }
+        $mime = match ($kind) {
+            'pdf' => 'application/pdf',
+            'xml' => 'application/xml',
+            default => 'application/zip',
+        };
+        $name = basename($rel);
+
+        return response(Storage::disk('public')->get($rel), 200, [
+            'Content-Type' => $mime,
+            'Content-Disposition' => 'inline; filename="'.$name.'"',
+            'Access-Control-Allow-Origin' => '*',
+            'Access-Control-Allow-Methods' => 'GET,HEAD,OPTIONS',
+            'Access-Control-Allow-Headers' => '*',
         ]);
+    }
+
+    private function feFileResponse($content, int $status, string $message)
+    {
+        return response()->json(['message' => $message], $status)
+            ->header('Access-Control-Allow-Origin', '*')
+            ->header('Access-Control-Allow-Methods', 'GET,HEAD,OPTIONS')
+            ->header('Access-Control-Allow-Headers', '*');
+    }
+
+    public static function resolvePrefixed(string $dir, string $name): ?string
+    {
+        $disk = Storage::disk('public');
+        $exact = trim($dir, '/').'/'.$name;
+        $candidates = [];
+        foreach ($disk->files($dir) as $f) {
+            if (str_ends_with($f, '/'.$name) || $f === $name) {
+                $candidates[] = $f;
+            }
+        }
+        $prefixed = array_values(array_filter($candidates, function ($f) use ($name) {
+            return (bool) preg_match('/\/\d+-'.preg_quote($name, '/').'$/', $f);
+        }));
+        if ($prefixed) {
+            natsort($prefixed);
+            return end($prefixed) ?: null;
+        }
+        if ($disk->exists($exact)) {
+            return $exact;
+        }
+
+        return $candidates[0] ?? null;
     }
 }
