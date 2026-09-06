@@ -36,9 +36,10 @@ class GeoController extends Controller
 
                 $params = [
                     'format'          => 'json',
-                    'limit'           => 1,
+                    'limit'           => 3,
                     'addressdetails'  => 1,
                     'q'               => $q,
+                    'countrycodes'    => 'pe',
                 ];
                 if ($email) $params['email'] = $email; // recomendado por política
 
