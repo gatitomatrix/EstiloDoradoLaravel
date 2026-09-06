@@ -89,6 +89,9 @@ class FeController extends Controller
                 $rel = null;
             }
         }
+        if ($kind === 'pdf' && $rel && !Storage::disk('public')->exists($rel)) {
+            $rel = null;
+        }
         if (!$rel || !Storage::disk('public')->exists($rel)) {
             return $this->feFileResponse(null, 404, 'Archivo no disponible.');
         }

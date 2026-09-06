@@ -396,6 +396,16 @@ class ComprobanteService
     /** Genera el PDF del pedido si falta (sin reenviar a SUNAT). */
     public function asegurarPdf(Pedido $pedido): ?string
     {
+        try {
+            return $this->asegurarPdfUnsafe($pedido);
+        } catch (\Throwable $e) {
+            Log::error('[asegurarPdf] pedido '.$pedido->id_pedido.': '.$e->getMessage().' @ '.$e->getFile().':'.$e->getLine());
+            return null;
+        }
+    }
+
+    private function asegurarPdfUnsafe(Pedido $pedido): ?string
+    {
         $pedido->loadMissing(['cliente', 'detalles.producto']);
         if ($pedido->sunat_pdf && Storage::disk('public')->exists($pedido->sunat_pdf)) {
             return $pedido->sunat_pdf;
@@ -466,6 +476,14 @@ class ComprobanteService
             }
         }
 
+        $emitido = now('America/Lima')->format('Y-m-d H:i:s');
+        try {
+            if ($pedido->fecha_pedido) {
+                $emitido = Carbon::parse($pedido->fecha_pedido)->timezone('America/Lima')->format('Y-m-d H:i:s');
+            }
+        } catch (\Throwable $e) {
+        }
+
         $html = View::make('fe.comprobante', [
             'tipo' => $tipo,
             'serie' => $serie,
@@ -492,7 +510,7 @@ class ComprobanteService
             'hash' => '-',
             'qrB64' => null,
             'logoB64' => $logoB64,
-            'emitido' => optional($pedido->fecha_pedido)->timezone('America/Lima')->format('Y-m-d H:i:s') ?: date('Y-m-d H:i:s'),
+            'emitido' => $emitido,
         ])->render();
 
         $dompdf = new Dompdf(['isRemoteEnabled' => true]);
