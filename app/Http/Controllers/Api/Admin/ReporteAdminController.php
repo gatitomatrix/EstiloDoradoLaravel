@@ -71,11 +71,13 @@ class ReporteAdminController extends Controller
 
     public function pedidos(string $ext, Request $request)
     {
+        [$desde, $hasta] = $this->rangoFechas($request);
         $headers = ['ID', 'Cliente', 'Estado', 'Total (S/)', 'Forma de pago', 'Fecha', 'Comprobante', 'Entrega'];
-        $rows = Pedido::query()
-            ->with('cliente')
-            ->orderByDesc('id_pedido')
-            ->get()
+        $q = Pedido::query()->with('cliente')->orderByDesc('id_pedido');
+        if ($request->filled('desde') || $request->filled('hasta') || $request->filled('dias') || $request->filled('mes')) {
+            $q->whereBetween('fecha_pedido', [$desde, $hasta]);
+        }
+        $rows = $q->get()
             ->map(function ($p) {
                 $cliente = trim(($p->cliente->nombre ?? '').' '.($p->cliente->apellido ?? ''));
                 $comp = trim(($p->comprobante_tipo ?? '').' '.($p->comprobante_serie ?? '').'-'.($p->comprobante_numero ?? ''));
@@ -96,7 +98,7 @@ class ReporteAdminController extends Controller
 
         return $this->export->download(
             'reporte_pedidos',
-            'Reporte de pedidos — Estilo Dorado',
+            'Reporte de pedidos — Estilo Dorado ('.$desde->toDateString().' a '.$hasta->toDateString().')',
             $headers,
             $rows,
             $ext
@@ -289,14 +291,53 @@ class ReporteAdminController extends Controller
         );
     }
 
-    private function buildFinanciero(Request $request): array
+    private function rangoFechas(Request $request): array
     {
+        $tz = 'America/Lima';
+        $ahora = Carbon::now($tz);
+        $hasta = $ahora->copy()->endOfDay();
+        $desde = $ahora->copy()->subDays(29)->startOfDay();
+        $days = 30;
+
+        if ($request->filled('desde') || $request->filled('hasta')) {
+            if ($request->filled('desde')) {
+                $desde = Carbon::parse($request->query('desde'), $tz)->startOfDay();
+            }
+            if ($request->filled('hasta')) {
+                $hasta = Carbon::parse($request->query('hasta'), $tz)->endOfDay();
+            }
+            if ($desde->gt($hasta)) {
+                $tmp = $desde->copy();
+                $desde = $hasta->copy()->startOfDay();
+                $hasta = $tmp->endOfDay();
+            }
+            if ($desde->diffInDays($hasta) > 365) {
+                $desde = $hasta->copy()->subDays(365)->startOfDay();
+            }
+            $days = $desde->diffInDays($hasta) + 1;
+
+            return [$desde, $hasta, $days];
+        }
+
+        if ((string) $request->query('mes') === '1') {
+            $desde = $ahora->copy()->startOfMonth()->startOfDay();
+            $days = $desde->diffInDays($hasta) + 1;
+
+            return [$desde, $hasta, $days];
+        }
+
         $days = (int) $request->query('dias', 30);
         if (! in_array($days, [7, 30, 90], true)) {
             $days = 30;
         }
-        $hasta = Carbon::now()->endOfDay();
-        $desde = Carbon::now()->subDays($days - 1)->startOfDay();
+        $desde = $ahora->copy()->subDays($days - 1)->startOfDay();
+
+        return [$desde, $hasta, $days];
+    }
+
+    private function buildFinanciero(Request $request): array
+    {
+        [$desde, $hasta, $days] = $this->rangoFechas($request);
 
         $enRango = fn ($q) => $q->whereBetween('fecha_pedido', [$desde, $hasta]);
 
