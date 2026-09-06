@@ -9,6 +9,8 @@ use App\Models\Producto;
 use App\Models\PedidoEstadoHistorial;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use App\Services\StockPedidoService;
+use App\Exceptions\InsufficientStockException;
 
 class PedidoClienteStoreController extends Controller
 {
@@ -89,12 +91,12 @@ class PedidoClienteStoreController extends Controller
                         'id_producto'     => $producto->id_producto,
                         'cantidad'        => $item['cantidad'],
                         'precio_unitario' => $precio,
-                        // 'subtotal'     => $subtotal,   // columna generada en la base de datos
                     ]);
 
-                    $producto->decrement('stock', $item['cantidad']);
                     $total += $subtotal;
                 }
+
+                app(StockPedidoService::class)->reservar($pedido, false);
 
                 $info = \App\Services\Envio\TarifaEnvio::desdeRequest($data);
                 $envio = round((float) $info['costo'], 2);
@@ -136,6 +138,13 @@ class PedidoClienteStoreController extends Controller
                 ], 201);
             });
 
+        } catch (InsufficientStockException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+                'error' => 'insufficient_stock',
+                'detalles' => $e->detalles,
+            ], 422);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,

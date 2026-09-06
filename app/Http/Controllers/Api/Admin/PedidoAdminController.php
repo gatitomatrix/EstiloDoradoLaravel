@@ -218,13 +218,19 @@ class PedidoAdminController extends Controller
             'forma_pago'   => 'nullable|in:tarjeta,yape,efectivo',
         ]);
 
-        $p = Pedido::find($id);
+        $p = Pedido::with('detalles')->find($id);
         if (!$p) return response()->json(['message'=>'Pedido no encontrado'],404);
 
+        $antes = strtolower((string) $p->estado);
         if (isset($data['fecha_pedido'])) $p->fecha_pedido = $data['fecha_pedido'];
         $p->estado     = $data['estado'];
         if (array_key_exists('forma_pago',$data)) $p->forma_pago = $data['forma_pago'];
         $p->save();
+
+        $despues = strtolower((string) $p->estado);
+        if ($antes !== 'cancelado' && $despues === 'cancelado') {
+            app(\App\Services\StockPedidoService::class)->devolver($p);
+        }
 
         $row = Pedido::leftJoin('clientes as c','c.id_cliente','=','pedidos.id_cliente')
             ->select(['pedidos.*', DB::raw("TRIM(CONCAT(COALESCE(c.nombre,''),' ',COALESCE(c.apellido,''))) as cliente_nombre")])

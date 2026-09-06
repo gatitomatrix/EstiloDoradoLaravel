@@ -12,6 +12,8 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use App\Services\ComprobanteService;
 use App\Services\Envio\TarifaEnvio;
+use App\Services\StockPedidoService;
+use App\Exceptions\InsufficientStockException;
 
 class PedidoPagoController extends Controller
 {
@@ -79,6 +81,7 @@ class PedidoPagoController extends Controller
         // MODO EFECTIVO (retiro en tienda)
         // =========================
         if ($data['forma_pago'] === 'efectivo') {
+            try {
             return DB::transaction(function () use ($data, $user) {
 
                 // Crear pedido SIN comprobante (usamos valores neutros para evitar NOT NULL)
@@ -116,12 +119,16 @@ class PedidoPagoController extends Controller
                 $envio = $this->aplicarEnvio($pedido, $data);
                 $pedido->total = $total + $envio;
                 $pedido->save();
+                app(StockPedidoService::class)->reservar($pedido, false);
 
                 $pedido->load('detalles.producto');
 
                 // Respuesta (sin comprobante)
                 return response()->json($this->pedidoPayload($pedido), 201);
             });
+            } catch (InsufficientStockException $e) {
+                return $this->stockError($e);
+            }
         }
 
         // =========================
@@ -172,6 +179,7 @@ class PedidoPagoController extends Controller
             ], 422);
         }
 
+        try {
         return DB::transaction(function () use ($data, $user, $tipoElegido) {
 
             // Serie & número antes del insert para evitar NOT NULL
@@ -210,6 +218,7 @@ class PedidoPagoController extends Controller
             $envio = $this->aplicarEnvio($pedido, $data);
             $pedido->total = $total + $envio;
             $pedido->save();
+            app(StockPedidoService::class)->reservar($pedido, !empty($data['culqi_id']));
 
             $svc = app(ComprobanteService::class);
             $svc->emitirOPdf($pedido, $data);
@@ -218,6 +227,9 @@ class PedidoPagoController extends Controller
 
             return response()->json($this->pedidoPayload($pedido), 201);
         });
+        } catch (InsufficientStockException $e) {
+            return $this->stockError($e);
+        }
     }
 
     public function show($id, Request $request)
@@ -261,32 +273,7 @@ class PedidoPagoController extends Controller
             $pedido->estado = 'cancelado';
             $pedido->save();
 
-            // Restaurar stock: pedidos viejos (POST /pedidos) descontaban stock.
-            $restaurar = false;
-            try {
-                $restaurar = PedidoEstadoHistorial::where('id_pedido', $pedido->id_pedido)
-                    ->where('comentario', 'like', '%aplicación móvil%')
-                    ->exists();
-            } catch (\Throwable $e) {
-                $restaurar = false;
-            }
-
-            if (!$restaurar && $pedido->comprobante_tipo !== 'EF') {
-                if ($pedido->comprobante_tipo === 'BO' && (int) $pedido->comprobante_numero === 0) {
-                    $restaurar = true;
-                }
-            }
-            // efectivo de confirmar (EF) no descontó stock → no restaurar
-            if ($pedido->comprobante_tipo === 'EF') {
-                $restaurar = false;
-            }
-
-            if ($restaurar) {
-                foreach ($pedido->detalles as $d) {
-                    Producto::where('id_producto', $d->id_producto)
-                        ->increment('stock', (int) $d->cantidad);
-                }
-            }
+            app(StockPedidoService::class)->devolver($pedido);
 
             try {
                 PedidoEstadoHistorial::create([
@@ -412,6 +399,16 @@ class PedidoPagoController extends Controller
     }
 
     /** Comprobante real emitido (no placeholders BO-00000000 de pedidos pendientes). */
+    private function stockError(InsufficientStockException $e)
+    {
+        return response()->json([
+            'success' => false,
+            'message' => $e->getMessage(),
+            'error' => 'insufficient_stock',
+            'detalles' => $e->detalles,
+        ], 422);
+    }
+
     private function comprobanteEmitido(Pedido $p): bool
     {
         $tipo = strtoupper((string) $p->comprobante_tipo);
