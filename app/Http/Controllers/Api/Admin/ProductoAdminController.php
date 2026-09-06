@@ -70,7 +70,7 @@ class ProductoAdminController extends Controller
             'precio_venta'  => ['required','numeric','min:0'],
             'descuento_pct' => ['nullable','numeric','min:0','max:90'],
             'oferta_hasta'  => ['nullable','date'],
-            'stock'         => ['required','integer','min:0'],
+            'stock'         => ['nullable','integer','min:0'],
             'id_categoria'  => ['required','integer','exists:categorias,id_categoria'],
             'id_proveedor'  => ['required','integer','exists:proveedores,id_proveedor'],
             'estado'        => ['required', Rule::in(['activo','inactivo'])],
@@ -100,7 +100,7 @@ class ProductoAdminController extends Controller
         if (\Illuminate\Support\Facades\Schema::hasColumn('productos', 'oferta_hasta')) {
             $p->oferta_hasta = $data['oferta_hasta'] ?? null;
         }
-        $p->stock          = $data['stock'];
+        $p->stock          = (int) ($data['stock'] ?? 0);
         $p->id_categoria   = $data['id_categoria'];
         $p->id_proveedor   = $data['id_proveedor'];
         $p->estado         = $data['estado'];
@@ -111,6 +111,24 @@ class ProductoAdminController extends Controller
         $p->updated_at     = null;
 
         $p->save();
+
+        $inicial = (int) ($data['stock'] ?? 0);
+        if ($inicial > 0) {
+            $p->stock = $inicial;
+            $p->save();
+            try {
+                app(\App\Services\InventarioKardex::class)->registrar(
+                    (int) $p->id_producto,
+                    'entrada',
+                    $inicial,
+                    'Stock inicial al dar de alta el producto',
+                    'compra',
+                    null,
+                    optional($request->user())->id_empleado,
+                );
+            } catch (\Throwable $e) {
+            }
+        }
 
         return response()->json($p, 201);
     }
@@ -129,7 +147,7 @@ class ProductoAdminController extends Controller
             'precio_venta'  => ['required','numeric','min:0'],
             'descuento_pct' => ['nullable','numeric','min:0','max:90'],
             'oferta_hasta'  => ['nullable','date'],
-            'stock'         => ['required','integer','min:0'],
+            'stock'         => ['nullable','integer','min:0'],
             'id_categoria'  => ['required','integer','exists:categorias,id_categoria'],
             'id_proveedor'  => ['required','integer','exists:proveedores,id_proveedor'],
             'estado'        => ['required', Rule::in(['activo','inactivo'])],
@@ -158,7 +176,6 @@ class ProductoAdminController extends Controller
         if (\Illuminate\Support\Facades\Schema::hasColumn('productos', 'oferta_hasta')) {
             $p->oferta_hasta = $data['oferta_hasta'] ?? null;
         }
-        $p->stock          = $data['stock'];
         $p->id_categoria   = $data['id_categoria'];
         $p->id_proveedor   = $data['id_proveedor'];
         $p->estado         = $data['estado'];

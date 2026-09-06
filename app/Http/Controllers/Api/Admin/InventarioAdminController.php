@@ -49,7 +49,10 @@ class InventarioAdminController extends Controller
         if ($refTipo)    $q->where('i.referencia_tipo', $refTipo);
         if ($idEmpleado) $q->where('i.id_empleado', $idEmpleado);
         if ($desde)      $q->where('i.fecha', '>=', $desde);
-        if ($hasta)      $q->where('i.fecha', '<=', $hasta);
+        if ($hasta) {
+            $hastaFin = strlen((string) $hasta) <= 10 ? $hasta.' 23:59:59' : $hasta;
+            $q->where('i.fecha', '<=', $hastaFin);
+        }
 
         $q->groupBy([
             'i.id_movimiento',
@@ -73,11 +76,26 @@ class InventarioAdminController extends Controller
             $rows = $q->get();
             return response()->json([
                 'data' => $rows,
-                'meta' => ['total' => $rows->count()]
+                'meta' => ['total' => $rows->count()],
+                'criticos' => $this->criticos(),
             ]);
         }
 
-        return $q->paginate($per);
+        $page = $q->paginate($per);
+        $payload = $page->toArray();
+        $payload['criticos'] = $this->criticos();
+
+        return response()->json($payload);
+    }
+
+    private function criticos(int $umbral = 5)
+    {
+        return Producto::query()
+            ->where('estado', 'activo')
+            ->where('stock', '<=', $umbral)
+            ->orderBy('stock')
+            ->limit(12)
+            ->get(['id_producto', 'nombre', 'stock']);
     }
 
     // POST /api/admin/inventario/entrada
@@ -87,7 +105,7 @@ class InventarioAdminController extends Controller
             'id_producto'     => 'required|integer|exists:productos,id_producto',
             'cantidad'        => 'required|integer|min:1',
             'observacion'     => 'nullable|string',
-            'referencia_tipo' => 'nullable|in:pedido,ajuste,otro',
+            'referencia_tipo' => 'nullable|in:pedido,ajuste,otro,compra',
             'referencia_id'   => 'nullable|integer',
             'fecha'           => 'nullable|date',
             'id_empleado'     => 'nullable|integer|exists:empleados,id_empleado',
@@ -123,7 +141,7 @@ class InventarioAdminController extends Controller
             'id_producto'     => 'required|integer|exists:productos,id_producto',
             'cantidad'        => 'required|integer|min:1',
             'observacion'     => 'nullable|string',
-            'referencia_tipo' => 'nullable|in:pedido,ajuste,otro',
+            'referencia_tipo' => 'nullable|in:pedido,ajuste,otro,compra',
             'referencia_id'   => 'nullable|integer',
             'fecha'           => 'nullable|date',
             'id_empleado'     => 'nullable|integer|exists:empleados,id_empleado',
@@ -162,9 +180,9 @@ class InventarioAdminController extends Controller
     {
         $data = $request->validate([
             'id_producto'     => 'required|integer|exists:productos,id_producto',
-            'cantidad'        => 'required|integer', // puede ser positivo o negativo
-            'observacion'     => 'nullable|string',
-            'referencia_tipo' => 'nullable|in:pedido,ajuste,otro',
+            'cantidad'        => 'required|integer',
+            'observacion'     => 'required|string|min:3',
+            'referencia_tipo' => 'nullable|in:pedido,ajuste,otro,compra',
             'referencia_id'   => 'nullable|integer',
             'fecha'           => 'nullable|date',
             'id_empleado'     => 'nullable|integer|exists:empleados,id_empleado',
