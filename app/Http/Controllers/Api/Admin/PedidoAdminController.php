@@ -229,13 +229,8 @@ class PedidoAdminController extends Controller
         $p->save();
 
         $despues = strtolower((string) $p->estado);
-        $stock = app(\App\Services\StockPedidoService::class);
         if ($antes !== $despues) {
-            if (in_array($despues, ['entregado', 'completado'], true) && $antes !== 'cancelado') {
-                $stock->confirmarEntrega($p);
-            } elseif ($despues === 'cancelado' && $antes !== 'cancelado') {
-                $stock->devolver($p);
-            }
+            app(\App\Services\StockPedidoService::class)->aplicarCambioEstado($p, $antes, $despues);
         }
 
         $row = Pedido::leftJoin('clientes as c','c.id_cliente','=','pedidos.id_cliente')

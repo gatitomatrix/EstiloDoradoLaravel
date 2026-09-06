@@ -13,6 +13,22 @@ class StockPedidoService
 {
     public function __construct(private InventarioKardex $kardex) {}
 
+    public function aplicarCambioEstado(Pedido $pedido, string $antes, string $despues): void
+    {
+        $antes = strtolower($antes);
+        $despues = strtolower($despues);
+        if ($antes === $despues) {
+            return;
+        }
+        if (in_array($despues, ['entregado', 'completado'], true) && $antes !== 'cancelado') {
+            $this->confirmarEntrega($pedido);
+            return;
+        }
+        if ($despues === 'cancelado') {
+            $this->devolver($pedido);
+        }
+    }
+
     public function reservar(Pedido $pedido, bool $allowOversell = false): void
     {
         $pedido->loadMissing('detalles.producto');

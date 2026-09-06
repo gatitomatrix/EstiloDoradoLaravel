@@ -37,9 +37,13 @@ class PedidoEstadoController extends Controller
         $pedido = Pedido::find($id);
         if (!$pedido) return response()->json(['message'=>'Pedido no encontrado'],404);
 
-        $anterior = $pedido->estado;
+        $anterior = (string) $pedido->estado;
         $pedido->estado = $data['estado'];
         $pedido->save();
+
+        if (strcasecmp($anterior, $data['estado']) !== 0) {
+            app(\App\Services\StockPedidoService::class)->aplicarCambioEstado($pedido, $anterior, $data['estado']);
+        }
 
         PedidoEstadoHistorial::create([
             'id_pedido'       => $pedido->id_pedido,
