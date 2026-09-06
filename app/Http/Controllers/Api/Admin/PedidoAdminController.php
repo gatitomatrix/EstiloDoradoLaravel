@@ -51,6 +51,7 @@ class PedidoAdminController extends Controller
 
         if ($per <= 0) {
             $rows = $q->get()->map(fn($p) => $this->decorateRow($p));
+            $this->attachItems($rows);
             return response()->json([
                 'data' => $rows,
                 'meta' => ['total' => $rows->count()],
@@ -59,6 +60,7 @@ class PedidoAdminController extends Controller
 
         $p = $q->paginate($per, ['*'], 'page', $page);
         $p->getCollection()->transform(fn($row) => $this->decorateRow($row));
+        $this->attachItems($p->getCollection());
 
         return response()->json([
             'data' => $p->items(),
@@ -129,6 +131,7 @@ class PedidoAdminController extends Controller
         $p->pdf_url = $urls['pdf'] ?? null;
         $p->xml_url = $urls['xml'] ?? null;
         $p->cdr_url = $urls['cdr'] ?? null;
+        $this->attachItems(collect([$p]));
 
         return $p;
     }
@@ -237,16 +240,16 @@ class PedidoAdminController extends Controller
             ->select(['pedidos.*', DB::raw("TRIM(CONCAT(COALESCE(c.nombre,''),' ',COALESCE(c.apellido,''))) as cliente_nombre")])
             ->where('pedidos.id_pedido',$p->id_pedido)->first();
 
-        return response()->json($this->decorateRow($row));
+        $dec = $this->decorateRow($row);
+        $this->attachItems(collect([$dec]));
+        return response()->json($dec);
     }
 
     public function destroy($id)
     {
-        $p = Pedido::find($id);
-        if (!$p) return response()->json(['message' => 'Pedido no encontrado'], 404);
-
-        $p->delete();
-        return response()->json(['ok' => true]);
+        return response()->json([
+            'message' => 'Los pedidos no se eliminan. Márquelos como cancelado para liberar el stock.',
+        ], 422);
     }
 
     public function comprobantes($id)
@@ -302,6 +305,45 @@ class PedidoAdminController extends Controller
         $row->cdr_url = $urls['cdr'] ?? null;
         $row->telefono_contacto = \App\Support\Celular::desdePedido($row);
         return $row;
+    }
+
+    private function attachItems($rows): void
+    {
+        $list = collect($rows);
+        $ids = $list->pluck('id_pedido')->filter()->all();
+        if (! $ids) {
+            return;
+        }
+        $by = DB::table('detalles_pedidos as d')
+            ->join('productos as p', 'p.id_producto', '=', 'd.id_producto')
+            ->leftJoin('categorias as c', 'c.id_categoria', '=', 'p.id_categoria')
+            ->whereIn('d.id_pedido', $ids)
+            ->select([
+                'd.id_pedido',
+                'd.id_producto',
+                'd.cantidad',
+                'p.nombre',
+                'p.imagen_url',
+                'c.nombre as categoria',
+            ])
+            ->get()
+            ->groupBy('id_pedido');
+
+        foreach ($list as $r) {
+            $items = collect($by->get($r->id_pedido, collect()))->map(fn ($i) => [
+                'id_producto' => (int) $i->id_producto,
+                'nombre' => $i->nombre,
+                'imagen_url' => $i->imagen_url,
+                'categoria' => $i->categoria,
+                'cantidad' => (int) $i->cantidad,
+            ])->values();
+            $r->items = $items;
+            $first = $items->first();
+            $extra = $items->count() - 1;
+            $r->producto_label = $first
+                ? ($first['nombre'].' ×'.$first['cantidad'].($extra > 0 ? ' +'.$extra : ''))
+                : '—';
+        }
     }
 
     private function buildComprobanteUrls($pedido): array
