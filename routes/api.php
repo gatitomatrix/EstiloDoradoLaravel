@@ -33,7 +33,7 @@ use App\Http\Controllers\Api\FeController;
 use App\Http\Controllers\Api\CheckoutController;
 use App\Http\Controllers\Api\PedidoPagoController;
 use App\Http\Controllers\Api\EnvioController;
-use App\Http\Controllers\Api\GeoController;
+use App\Http\Controllers\Api\ConsultaRucController;
 
 use App\Http\Controllers\Api\AsistenteController;
 use App\Http\Controllers\Api\Admin\AdminEventsController;
@@ -103,6 +103,7 @@ Route::middleware(['auth:sanctum','abilities:client'])->group(function () {
     Route::get('pedidos/{id}',       [PedidoPagoController::class, 'show']);
     Route::post('pedidos/{id}/cancelar', [PedidoPagoController::class, 'cancelar']);
     Route::post('pedidos/{id}/pagar',    [PedidoPagoController::class, 'pagar']);
+    Route::get('consulta-ruc/{ruc}', [ConsultaRucController::class, 'show'])->middleware('throttle:20,1');
 });
 
 // ===================================================================================
