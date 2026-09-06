@@ -104,7 +104,9 @@ class PedidoClienteStoreController extends Controller
                 if (\Illuminate\Support\Facades\Schema::hasColumn('pedidos', 'envio_etiqueta')) {
                     $pedido->envio_etiqueta = $info['etiqueta'];
                 }
-                $pedido->observacion = trim((string) ($pedido->observacion ?? '').' ENVIO:'.$envio.'|'.$info['etiqueta']);
+                if (\Illuminate\Support\Facades\Schema::hasColumn('pedidos', 'observacion')) {
+                    $pedido->observacion = trim((string) ($pedido->observacion ?? '').' ENVIO:'.$envio.'|'.$info['etiqueta']);
+                }
                 $pedido->total = $total + $envio;
                 $pedido->save();
 

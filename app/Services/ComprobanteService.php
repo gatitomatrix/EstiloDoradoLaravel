@@ -74,8 +74,8 @@ class ComprobanteService
 
         $pedido->loadMissing(['cliente', 'detalles.producto']);
         $cuenta = $pedido->cliente;
-        $nombreCuenta = trim(trim((string) ($cuenta->nombre ?? '')).' '.trim((string) ($cuenta->apellido ?? '')));
-        $dirCuenta = trim((string) ($pedido->direccion_entrega ?: ($cuenta->direccion ?? '')));
+        $nombreCuenta = trim(trim((string) ($cuenta?->nombre ?? '')).' '.trim((string) ($cuenta?->apellido ?? '')));
+        $dirCuenta = trim((string) ($pedido->direccion_entrega ?: ($cuenta?->direccion ?? '')));
 
         if ($tipo === 'FA') {
             $cliTipoDoc  = '6';

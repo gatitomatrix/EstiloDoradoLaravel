@@ -522,8 +522,10 @@ class PedidoPagoController extends Controller
         if (Schema::hasColumn('pedidos', 'envio_etiqueta')) {
             $pedido->envio_etiqueta = $etiq;
         }
-        $obs = trim((string) ($pedido->observacion ?? ''));
-        $pedido->observacion = trim($obs.' ENVIO:'.$costo.'|'.$etiq);
+        if (Schema::hasColumn('pedidos', 'observacion')) {
+            $obs = trim((string) ($pedido->observacion ?? ''));
+            $pedido->observacion = trim($obs.' ENVIO:'.$costo.'|'.$etiq);
+        }
 
         return $costo;
     }
