@@ -46,21 +46,48 @@ class ComprobanteService
         return $see;
     }
 
+    private function datosEmisor(): array
+    {
+        $e = config('services.empresa', []);
+        $dir = trim((string) ($e['direccion'] ?? 'Prolongación Yauli Nro. S/N'));
+        $dist = trim((string) ($e['dist'] ?? 'Chaupimarca'));
+        $prov = trim((string) ($e['prov'] ?? 'Pasco'));
+        $depa = trim((string) ($e['depa'] ?? 'Pasco'));
+        $linea = $dir;
+        if ($dist !== '' || $prov !== '' || $depa !== '') {
+            $linea .= "\n".trim($dist.', '.$prov.', '.$depa, ' ,');
+        }
+
+        return [
+            'ruc' => (string) ($e['ruc'] ?? '20614857430'),
+            'ruc_visual' => (string) ($e['ruc'] ?? '20614857430'),
+            'razon' => (string) ($e['razon'] ?? 'ESTILO DORADO S.A.C.'),
+            'comercial' => (string) ($e['comercial'] ?? 'Estilo Dorado'),
+            'direccion' => $linea,
+            'ubigeo' => (string) ($e['ubigeo'] ?? '190101'),
+            'depa' => $depa,
+            'prov' => $prov,
+            'dist' => $dist,
+            'dir_corta' => $dir,
+        ];
+    }
+
     private function buildCompany(): Company
     {
+        $e = $this->datosEmisor();
         $addr = (new Address())
-            ->setUbigueo((string)env('EMP_UBIGEO', '150101'))
-            ->setDepartamento((string)env('EMP_DEPA', 'LIMA'))
-            ->setProvincia((string)env('EMP_PROV', 'LIMA'))
-            ->setDistrito((string)env('EMP_DIST', 'LIMA'))
+            ->setUbigueo($e['ubigeo'])
+            ->setDepartamento($e['depa'])
+            ->setProvincia($e['prov'])
+            ->setDistrito($e['dist'])
             ->setUrbanizacion('-')
-            ->setDireccion((string)env('EMP_DIRECCION', 'AV. SIN NOMBRE 123'))
+            ->setDireccion($e['dir_corta'])
             ->setCodLocal('0000');
 
         return (new Company())
-            ->setRuc((string)env('SUNAT_RUC'))
-            ->setRazonSocial((string)env('EMP_RAZON', 'MI EMPRESA SAC'))
-            ->setNombreComercial((string)env('EMP_COMERCIAL', 'MI EMPRESA'))
+            ->setRuc($e['ruc'])
+            ->setRazonSocial($e['razon'])
+            ->setNombreComercial($e['comercial'])
             ->setAddress($addr);
     }
 
@@ -292,13 +319,7 @@ class ComprobanteService
             'tipo'         => $tipo,                   // 'FA'/'BO'
             'serie'        => $serie,
             'numero'       => $num8,
-            'emisor'       => [
-                'ruc'         => env('SUNAT_RUC'),
-                'ruc_visual'  => env('EMP_RUC_VISUAL', env('SUNAT_RUC')),
-                'razon'       => env('EMP_RAZON', 'MI EMPRESA SAC'),
-                'comercial'   => env('EMP_COMERCIAL', 'MI EMPRESA'),
-                'direccion'   => trim((string)env('EMP_DIRECCION','-').' '.(string)env('EMP_DIST','').', '.(string)env('EMP_PROV','').', '.(string)env('EMP_DEPA','')),
-            ],
+            'emisor'       => $this->datosEmisor(),
             'cliente'      => [
                 'doc_label'  => $tipo === 'FA' ? 'RUC' : 'DNI',
                 'doc'        => $cliNumDoc,
@@ -488,13 +509,7 @@ class ComprobanteService
             'tipo' => $tipo,
             'serie' => $serie,
             'numero' => $num8,
-            'emisor' => [
-                'ruc' => env('SUNAT_RUC'),
-                'ruc_visual' => env('EMP_RUC_VISUAL', env('SUNAT_RUC')),
-                'razon' => env('EMP_RAZON', 'MI EMPRESA SAC'),
-                'comercial' => env('EMP_COMERCIAL', 'MI EMPRESA'),
-                'direccion' => trim((string) env('EMP_DIRECCION', '-').' '.(string) env('EMP_DIST', '').', '.(string) env('EMP_PROV', '').', '.(string) env('EMP_DEPA', '')),
-            ],
+            'emisor' => $this->datosEmisor(),
             'cliente' => [
                 'doc_label' => $tipo === 'FA' ? 'RUC' : 'DNI',
                 'doc' => $cliNumDoc,

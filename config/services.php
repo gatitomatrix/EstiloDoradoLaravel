@@ -44,7 +44,16 @@ return [
         'client_id' => env('GOOGLE_CLIENT_ID'),
     ],
 
-    'geo' => [
+    'empresa' => [
+        'ruc'        => env('EMP_RUC_VISUAL', env('SUNAT_RUC', '20614857430')),
+        'razon'      => env('EMP_RAZON', 'ESTILO DORADO S.A.C.'),
+        'comercial'  => env('EMP_COMERCIAL', 'Estilo Dorado'),
+        'direccion'  => env('EMP_DIRECCION', 'Prolongación Yauli Nro. S/N'),
+        'ubigeo'     => env('EMP_UBIGEO', '190101'),
+        'depa'       => env('EMP_DEPA', 'Pasco'),
+        'prov'       => env('EMP_PROV', 'Pasco'),
+        'dist'       => env('EMP_DIST', 'Chaupimarca'),
+    ],
     'enabled'   => env('GEO_ENABLED', true),
     'base'      => env('GEO_NOMINATIM_BASE', 'https://nominatim.openstreetmap.org'),
     'email'     => env('GEO_CONTACT_EMAIL'),
