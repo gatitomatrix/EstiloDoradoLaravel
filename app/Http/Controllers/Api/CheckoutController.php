@@ -46,7 +46,7 @@ class CheckoutController extends Controller
             $items = [];
             foreach ($data['items'] as $it) {
                 $prod   = Producto::findOrFail($it['id_producto']);
-                $precio = $prod->precio_venta;
+                $precio = (float) $prod->precio_final;
                 $qty    = $it['cantidad'];
 
                 DetallePedido::create([

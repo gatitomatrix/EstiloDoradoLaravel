@@ -79,7 +79,7 @@ class PedidoClienteStoreController extends Controller
                 $total = 0;
                 foreach ($data['items'] as $item) {
                     $producto = Producto::findOrFail($item['id_producto']);
-                    $precio   = $producto->precio_venta;
+                    $precio   = (float) $producto->precio_final;
                     $subtotal = $precio * $item['cantidad'];
 
                     DetallePedido::create([

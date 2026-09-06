@@ -99,7 +99,7 @@ class PedidoPagoController extends Controller
                 $total = 0;
                 foreach ($data['items'] as $it) {
                     $prod   = Producto::findOrFail($it['id_producto']);
-                    $precio = $prod->precio_venta;
+                    $precio = (float) $prod->precio_final;
 
                     DetallePedido::create([
                         'id_pedido'       => $pedido->id_pedido,
@@ -185,7 +185,7 @@ class PedidoPagoController extends Controller
             $total = 0;
             foreach ($data['items'] as $it) {
                 $prod   = Producto::findOrFail($it['id_producto']);
-                $precio = $prod->precio_venta;
+                $precio = (float) $prod->precio_final;
 
                 DetallePedido::create([
                     'id_pedido'       => $pedido->id_pedido,
