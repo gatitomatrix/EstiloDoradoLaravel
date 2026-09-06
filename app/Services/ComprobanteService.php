@@ -46,6 +46,17 @@ class ComprobanteService
         return $see;
     }
 
+    private function etiquetaFormaPago(Pedido $pedido): string
+    {
+        $m = strtolower(trim((string) ($pedido->forma_pago ?? '')));
+        return match ($m) {
+            'yape' => 'CONTADO (YAPE)',
+            'tarjeta' => 'CONTADO (TARJETA)',
+            'efectivo' => 'CONTADO (EFECTIVO)',
+            default => 'CONTADO',
+        };
+    }
+
     private function datosEmisor(): array
     {
         $e = config('services.empresa', []);
@@ -332,6 +343,7 @@ class ComprobanteService
             'mto_total'    => number_format($mtoTotal, 2, '.', ''),
             'legend'       => 'SON: '.$this->montoEnLetras($mtoTotal).' SOLES',
             'items'        => $pdfItems,
+            'forma_pago'   => $this->etiquetaFormaPago($pedido),
             'hash'         => $hash,
             'qrB64'        => $qrB64,
             'logoB64'      => $logoB64,
@@ -522,6 +534,7 @@ class ComprobanteService
             'mto_total' => number_format($mtoTotal, 2, '.', ''),
             'legend' => 'SON: '.$this->montoEnLetras($mtoTotal).' SOLES',
             'items' => $pdfItems,
+            'forma_pago' => $this->etiquetaFormaPago($pedido),
             'hash' => '-',
             'qrB64' => null,
             'logoB64' => $logoB64,

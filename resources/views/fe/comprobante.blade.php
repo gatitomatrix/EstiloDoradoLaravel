@@ -62,7 +62,7 @@
         <td style="width:45%;vertical-align:top">
             <div><span class="b">EMISIÓN:</span> {{ $emitido }}</div>
             <div><span class="b">MONEDA:</span> {{ $moneda }}</div>
-            <div><span class="b">FORMA DE PAGO:</span> CONTADO</div>
+            <div><span class="b">FORMA DE PAGO:</span> {{ $forma_pago ?? 'CONTADO' }}</div>
             <div><span class="b">TIPO DE OPERACIÓN:</span> VENTA INTERNA</div>
         </td>
     </tr>
