@@ -211,18 +211,8 @@ class PedidoPagoController extends Controller
             $pedido->total = $total + $envio;
             $pedido->save();
 
-            // Emisión SUNAT: no tumbar el pedido si falla (timeout/cert)
-            try {
-                /** @var ComprobanteService $svc */
-                $svc = app(ComprobanteService::class);
-                $res = $svc->emitir($pedido, $data);
-                $pedido->sunat_pdf = $res['pdf'] ?? null;
-                $pedido->sunat_xml = $res['xml'] ?? null;
-                $pedido->sunat_cdr = $res['cdr'] ?? null;
-                $pedido->save();
-            } catch (\Throwable $e) {
-                \Log::warning('[confirmar] emitir CPE falló pedido '.$pedido->id_pedido.': '.$e->getMessage());
-            }
+            $svc = app(ComprobanteService::class);
+            $svc->emitirOPdf($pedido, $data);
 
             $pedido->load('detalles.producto');
 
@@ -388,17 +378,8 @@ class PedidoPagoController extends Controller
             $pedido->comprobante_numero = $numero;
             $pedido->save();
 
-            try {
-                /** @var ComprobanteService $svc */
-                $svc = app(ComprobanteService::class);
-                $res = $svc->emitir($pedido, $data);
-                $pedido->sunat_pdf = $res['pdf'] ?? null;
-                $pedido->sunat_xml = $res['xml'] ?? null;
-                $pedido->sunat_cdr = $res['cdr'] ?? null;
-                $pedido->save();
-            } catch (\Throwable $e) {
-                // Si falla SUNAT, igual dejamos pagado con serie/número
-            }
+            $svc = app(ComprobanteService::class);
+            $svc->emitirOPdf($pedido, $data);
 
             try {
                 PedidoEstadoHistorial::create([

@@ -73,6 +73,7 @@ class ComprobanteService
         $tipoDocCpe = $tipo === 'FA' ? '01' : '03';
 
         $pedido->loadMissing(['cliente', 'detalles.producto']);
+        $this->guardarMeta($pedido, $payload);
         $cuenta = $pedido->cliente;
         $nombreCuenta = trim(trim((string) ($cuenta?->nombre ?? '')).' '.trim((string) ($cuenta?->apellido ?? '')));
         $dirCuenta = trim((string) ($pedido->direccion_entrega ?: ($cuenta?->direccion ?? '')));
@@ -332,6 +333,66 @@ class ComprobanteService
         ];
     }
 
+    /** Emite SUNAT si se puede; si falla, igual deja PDF de boleta/factura. */
+    public function emitirOPdf(Pedido $pedido, array $payload): void
+    {
+        $this->guardarMeta($pedido, $payload);
+        try {
+            $res = $this->emitir($pedido, $payload);
+            $pedido->sunat_pdf = $res['pdf'] ?? $pedido->sunat_pdf;
+            $pedido->sunat_xml = $res['xml'] ?? $pedido->sunat_xml;
+            $pedido->sunat_cdr = $res['cdr'] ?? $pedido->sunat_cdr;
+            $pedido->save();
+        } catch (\Throwable $e) {
+            Log::warning('[CPE] emitir falló pedido '.$pedido->id_pedido.': '.$e->getMessage());
+        }
+        if (!$pedido->sunat_pdf || !Storage::disk('public')->exists($pedido->sunat_pdf)) {
+            $pdf = $this->asegurarPdf($pedido);
+            if ($pdf) {
+                $pedido->sunat_pdf = $pdf;
+                $pedido->save();
+            }
+        }
+    }
+
+    public function guardarMeta(Pedido $pedido, array $payload): void
+    {
+        $tipo = strtoupper((string) ($pedido->comprobante_tipo ?: ($payload['comprobante'] ?? 'BO')));
+        $cli = [
+            'doc_label' => $tipo === 'FA' ? 'RUC' : 'DNI',
+            'doc' => '',
+            'nombre' => '',
+            'direccion' => (string) ($pedido->direccion_entrega ?: ''),
+        ];
+        if ($tipo === 'FA' && isset($payload['factura']) && is_array($payload['factura'])) {
+            $f = $payload['factura'];
+            $cli['doc'] = preg_replace('/\D+/', '', (string) ($f['ruc'] ?? '')) ?: '';
+            $cli['nombre'] = trim((string) ($f['razonSocial'] ?? ''));
+            $cli['direccion'] = trim((string) ($f['direccion'] ?? '')) ?: $cli['direccion'];
+        } elseif (isset($payload['boleta']) && is_array($payload['boleta'])) {
+            $b = $payload['boleta'];
+            $cli['doc'] = preg_replace('/\D+/', '', (string) ($b['dni'] ?? '')) ?: '';
+            $cli['nombre'] = trim((string) ($b['nombres'] ?? ''));
+            $cli['direccion'] = trim((string) ($b['direccion'] ?? '')) ?: $cli['direccion'];
+        }
+        Storage::disk('public')->put(
+            'comprobantes/meta/'.$pedido->id_pedido.'.json',
+            json_encode(['tipo' => $tipo, 'cliente' => $cli], JSON_UNESCAPED_UNICODE)
+        );
+    }
+
+    /** @return array{tipo?:string,cliente?:array{doc_label?:string,doc?:string,nombre?:string,direccion?:string}} */
+    private function leerMeta(Pedido $pedido): array
+    {
+        $rel = 'comprobantes/meta/'.$pedido->id_pedido.'.json';
+        if (!Storage::disk('public')->exists($rel)) {
+            return [];
+        }
+        $j = json_decode((string) Storage::disk('public')->get($rel), true);
+
+        return is_array($j) ? $j : [];
+    }
+
     /** Genera el PDF del pedido si falta (sin reenviar a SUNAT). */
     public function asegurarPdf(Pedido $pedido): ?string
     {
@@ -354,9 +415,14 @@ class ComprobanteService
         $friendly = "{$serie}-{$num8}";
 
         $cuenta = $pedido->cliente;
-        $cliNombre = trim(trim((string) ($cuenta?->nombre ?? '')).' '.trim((string) ($cuenta?->apellido ?? ''))) ?: 'CLIENTE';
-        $cliDir = trim((string) ($pedido->direccion_entrega ?: ($cuenta?->direccion ?? ''))) ?: '-';
-        $cliNumDoc = $tipo === 'FA' ? '00000000000' : '00000000';
+        $meta = $this->leerMeta($pedido);
+        $metaCli = is_array($meta['cliente'] ?? null) ? $meta['cliente'] : [];
+        $cliNombre = trim((string) ($metaCli['nombre'] ?? ''))
+            ?: (trim(trim((string) ($cuenta?->nombre ?? '')).' '.trim((string) ($cuenta?->apellido ?? ''))) ?: 'CLIENTE');
+        $cliDir = trim((string) ($metaCli['direccion'] ?? ''))
+            ?: (trim((string) ($pedido->direccion_entrega ?: ($cuenta?->direccion ?? ''))) ?: '-');
+        $cliNumDoc = preg_replace('/\D+/', '', (string) ($metaCli['doc'] ?? ''))
+            ?: ($tipo === 'FA' ? '00000000000' : '00000000');
 
         $envioCosto = 0.0;
         $envioEtiqueta = 'Envío';
