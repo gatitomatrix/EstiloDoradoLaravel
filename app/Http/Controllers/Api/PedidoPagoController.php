@@ -159,7 +159,14 @@ class PedidoPagoController extends Controller
 
         $dir = (string) ($data['direccion_entrega'] ?? '');
         $esRetiro = str_contains(mb_strtoupper($dir), 'RETIRO');
-        if ($dir !== '' && ! $esRetiro && ! TarifaEnvio::cubre(null, null, $dir)) {
+        $ub = is_array($data['ubigeo'] ?? null) ? $data['ubigeo'] : [];
+        $okCubre = $esRetiro || TarifaEnvio::cubre(
+            $ub['departamento'] ?? null,
+            $ub['provincia'] ?? null,
+            $dir
+        );
+        // Si Culqi ya cobró, no tumbar el pedido por el texto de la dirección.
+        if ($dir !== '' && ! $okCubre && empty($data['culqi_id'])) {
             return response()->json([
                 'message' => 'Por ahora el envío a domicilio solo cubre Lima, Callao, Junín (Huancayo) y Pasco (Cerro de Pasco). Puedes retirar en tienda.',
             ], 422);
