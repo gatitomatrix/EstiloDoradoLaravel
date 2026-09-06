@@ -39,8 +39,14 @@ class SunatService
         $keyPem  = base_path(env('SUNAT_KEY_PEM',  'storage/certs/key.pem'));
         $pass    = env('SUNAT_CERT_PASS', null);
 
-        $this->see->setCertificate(file_get_contents($certPem));
-        $this->see->setPrivateKey(file_get_contents($keyPem), $pass);
+        $cert = is_file($certPem) ? (string) file_get_contents($certPem) : '';
+        $key = is_file($keyPem) ? (string) file_get_contents($keyPem) : '';
+        if ($cert !== '') {
+            $this->see->setCertificate($cert);
+        }
+        if ($key !== '') {
+            $this->see->setPrivateKey($key, $pass);
+        }
 
         // Credenciales SOL
         $ruc  = env('SUNAT_RUC');

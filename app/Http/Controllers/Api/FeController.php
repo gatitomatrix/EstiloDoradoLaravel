@@ -10,8 +10,6 @@ use Illuminate\Support\Facades\Storage;
 
 class FeController extends Controller
 {
-    public function __construct(private SunatService $fe){}
-
     /**
      * POST /api/fe/emitir
      * payload:
@@ -37,8 +35,9 @@ class FeController extends Controller
         ]);
 
         try {
-            $invoice = $this->fe->buildInvoice($data);   // Invoice (01/03)
-            $res = $this->fe->sendAndStore($invoice);    // Enviar y guardar XML/CDR/PDF
+            $fe = app(SunatService::class);
+            $invoice = $fe->buildInvoice($data);
+            $res = $fe->sendAndStore($invoice);
             return response()->json($res, $res['success'] ? 200 : 422);
         } catch (\Throwable $e) {
             return response()->json([
@@ -66,6 +65,16 @@ class FeController extends Controller
     }
 
     public function pedidoFile($id, $kind)
+    {
+        try {
+            return $this->pedidoFileUnsafe($id, $kind);
+        } catch (\Throwable $e) {
+            \Log::error('[fe.pedidoFile] '.$id.'/'.$kind.': '.$e->getMessage().' @ '.$e->getFile().':'.$e->getLine());
+            return $this->feFileResponse(null, 500, 'No se pudo abrir el archivo.');
+        }
+    }
+
+    private function pedidoFileUnsafe($id, $kind)
     {
         $kind = strtolower((string) $kind);
         if (!in_array($kind, ['pdf', 'xml', 'cdr'], true)) {
