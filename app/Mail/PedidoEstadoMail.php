@@ -17,6 +17,7 @@ class PedidoEstadoMail extends Mailable
     public string $doriUrl;
     public string $logoUrl;
     public string $pedidoUrl;
+    public ?string $celular;
 
     public function __construct(
         public Pedido $pedido,
@@ -29,6 +30,7 @@ class PedidoEstadoMail extends Mailable
         $this->doriUrl = $this->tiendaUrl.'/assets/img/dori-completo.jpg';
         $this->logoUrl = $this->tiendaUrl.'/assets/img/logo-edorado.jpeg';
         $this->pedidoUrl = $this->tiendaUrl.'/resumen/'.$pedido->id_pedido;
+        $this->celular = \App\Support\Celular::desdePedido($pedido);
     }
 
     public function envelope(): Envelope

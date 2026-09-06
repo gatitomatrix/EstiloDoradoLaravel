@@ -124,6 +124,7 @@ class PedidoAdminController extends Controller
         if (!$p) return response()->json(['message'=>'No encontrado'],404);
 
         $p->cliente_nombre = trim(($p->cliente->nombre ?? '').' '.($p->cliente->apellido ?? ''));
+        $p->telefono_contacto = \App\Support\Celular::desdePedido($p) ?: ($p->cliente->telefono ?? null);
         $urls = $this->buildComprobanteUrls($p);
         $p->pdf_url = $urls['pdf'] ?? null;
         $p->xml_url = $urls['xml'] ?? null;
@@ -299,6 +300,7 @@ class PedidoAdminController extends Controller
         $row->pdf_url = $urls['pdf'] ?? null;
         $row->xml_url = $urls['xml'] ?? null;
         $row->cdr_url = $urls['cdr'] ?? null;
+        $row->telefono_contacto = \App\Support\Celular::desdePedido($row);
         return $row;
     }
 

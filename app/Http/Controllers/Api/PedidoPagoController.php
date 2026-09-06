@@ -14,6 +14,7 @@ use App\Services\ComprobanteService;
 use App\Services\Envio\TarifaEnvio;
 use App\Services\StockPedidoService;
 use App\Exceptions\InsufficientStockException;
+use App\Support\Celular;
 
 class PedidoPagoController extends Controller
 {
@@ -46,6 +47,7 @@ class PedidoPagoController extends Controller
             'total'             => $p->total,
             'forma_pago'        => $p->forma_pago,
             'direccion_entrega' => $p->direccion_entrega,
+            'telefono_contacto' => Celular::desdePedido($p),
             'producto_label'    => $label,
             'comprobante_tipo'  => $emitido ? $tipo : null,
             'comprobante_serie' => $emitido ? $serie : null,
@@ -69,6 +71,7 @@ class PedidoPagoController extends Controller
     'items.*.cantidad'    => 'required|integer|min:1',
     'envio_tipo'        => 'nullable|in:AGENCIA,DOMICILIO,agencia,domicilio',
     'ubigeo'            => 'nullable|array',
+    'telefono'          => 'nullable|string|max:20',
     'comprobante'       => 'nullable|in:BO,FA,bo,fa',
     'factura'           => 'nullable|array',
     'boleta'            => 'nullable|array',
@@ -76,13 +79,22 @@ class PedidoPagoController extends Controller
 
 
         $user = $request->user();
+        $cel = Celular::normalizar($data['telefono'] ?? null);
+        $dirPre = (string) ($data['direccion_entrega'] ?? '');
+        $esRetiroPre = str_contains(mb_strtoupper($dirPre), 'RETIRO') || ($data['forma_pago'] ?? '') === 'efectivo';
+        if (! $esRetiroPre && ! $cel) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Para el envío indica un celular de contacto (9 dígitos, empieza con 9).',
+            ], 422);
+        }
 
         // =========================
         // MODO EFECTIVO (retiro en tienda)
         // =========================
         if ($data['forma_pago'] === 'efectivo') {
             try {
-            return DB::transaction(function () use ($data, $user) {
+            return DB::transaction(function () use ($data, $user, $cel) {
 
                 // Crear pedido SIN comprobante (usamos valores neutros para evitar NOT NULL)
                 $pedido = new Pedido();
@@ -120,6 +132,7 @@ class PedidoPagoController extends Controller
                 $pedido->total = $total + $envio;
                 $pedido->save();
                 app(StockPedidoService::class)->reservar($pedido, false);
+                $this->guardarCelular($pedido, $user, $cel);
 
                 $pedido->load('detalles.producto');
 
@@ -180,7 +193,7 @@ class PedidoPagoController extends Controller
         }
 
         try {
-        return DB::transaction(function () use ($data, $user, $tipoElegido) {
+        return DB::transaction(function () use ($data, $user, $tipoElegido, $cel) {
 
             // Serie & número antes del insert para evitar NOT NULL
             $serie  = $tipoElegido === 'FA' ? 'F001' : 'B001';
@@ -219,6 +232,7 @@ class PedidoPagoController extends Controller
             $pedido->total = $total + $envio;
             $pedido->save();
             app(StockPedidoService::class)->reservar($pedido, !empty($data['culqi_id']));
+            $this->guardarCelular($pedido, $user, $cel);
 
             $svc = app(ComprobanteService::class);
             $svc->emitirOPdf($pedido, $data);
@@ -399,6 +413,26 @@ class PedidoPagoController extends Controller
     }
 
     /** Comprobante real emitido (no placeholders BO-00000000 de pedidos pendientes). */
+    private function guardarCelular(Pedido $pedido, $user, ?string $cel): void
+    {
+        if (! $cel) {
+            return;
+        }
+        if (Schema::hasColumn('pedidos', 'telefono_contacto')) {
+            $pedido->telefono_contacto = $cel;
+        } elseif (Schema::hasColumn('pedidos', 'observacion')) {
+            $obs = preg_replace('/\s*\[CEL:\d{9}\]/', '', (string) $pedido->observacion) ?? '';
+            $pedido->observacion = trim($obs.' [CEL:'.$cel.']');
+        }
+        $pedido->save();
+
+        $actual = Celular::normalizar($user->telefono ?? null);
+        if (! $actual) {
+            $user->telefono = $cel;
+            $user->save();
+        }
+    }
+
     private function stockError(InsufficientStockException $e)
     {
         return response()->json([
@@ -475,6 +509,7 @@ class PedidoPagoController extends Controller
             'total'             => $p->total,
             'forma_pago'        => $p->forma_pago,
             'direccion_entrega' => $p->direccion_entrega,
+            'telefono_contacto' => Celular::desdePedido($p),
 
             'sunat_pdf' => $pdfUrl,
             'sunat_xml' => $xmlUrl,

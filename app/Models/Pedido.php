@@ -20,6 +20,7 @@ class Pedido extends Model
         'forma_pago',
         'culqi_id',
         'direccion_entrega',
+        'telefono_contacto',
         'observacion',           // ← Agregado
         'comprobante_tipo',
         'comprobante_serie',

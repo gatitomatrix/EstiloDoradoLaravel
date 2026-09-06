@@ -38,6 +38,9 @@
                     <strong>Estado:</strong> {{ $pedido->estado }}<br>
                     <strong>Total:</strong> S/ {{ number_format((float) $pedido->total, 2) }}<br>
                     <strong>Pago:</strong> {{ $pedido->forma_pago ?? '—' }}
+                    @if(!empty($celular))
+                    <br><strong>Celular:</strong> +51 {{ $celular }}
+                    @endif
                   </td>
                 </tr>
               </table>
