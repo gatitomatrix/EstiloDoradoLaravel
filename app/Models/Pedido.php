@@ -15,6 +15,8 @@ class Pedido extends Model
         'fecha_pedido',
         'estado',
         'total',
+        'costo_envio',
+        'envio_etiqueta',
         'forma_pago',
         'culqi_id',
         'direccion_entrega',

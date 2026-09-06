@@ -18,6 +18,8 @@ class PedidoClienteStoreController extends Controller
             $data = $request->validate([
                 'forma_pago'          => 'nullable|string|max:50',
                 'direccion_entrega'   => 'nullable|string|max:255',
+                'envio_tipo'          => 'nullable|in:AGENCIA,DOMICILIO,agencia,domicilio',
+                'ubigeo'              => 'nullable|array',
                 'observacion'         => 'nullable|string|max:500',
                 'items'               => 'required|array|min:1',
                 'items.*.id_producto' => 'required|integer|exists:productos,id_producto',
@@ -94,7 +96,16 @@ class PedidoClienteStoreController extends Controller
                     $total += $subtotal;
                 }
 
-                $pedido->total = $total;
+                $info = \App\Services\Envio\TarifaEnvio::desdeRequest($data);
+                $envio = round((float) $info['costo'], 2);
+                if (\Illuminate\Support\Facades\Schema::hasColumn('pedidos', 'costo_envio')) {
+                    $pedido->costo_envio = $envio;
+                }
+                if (\Illuminate\Support\Facades\Schema::hasColumn('pedidos', 'envio_etiqueta')) {
+                    $pedido->envio_etiqueta = $info['etiqueta'];
+                }
+                $pedido->observacion = trim((string) ($pedido->observacion ?? '').' ENVIO:'.$envio.'|'.$info['etiqueta']);
+                $pedido->total = $total + $envio;
                 $pedido->save();
 
                 PedidoEstadoHistorial::create([

@@ -9,6 +9,7 @@ use App\Models\Producto;
 use App\Models\PedidoEstadoHistorial;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use App\Services\ComprobanteService;
 use App\Services\Envio\TarifaEnvio;
 
@@ -64,6 +65,8 @@ class PedidoPagoController extends Controller
     'items'             => 'required|array|min:1',
     'items.*.id_producto' => 'required|integer|exists:productos,id_producto',
     'items.*.cantidad'    => 'required|integer|min:1',
+    'envio_tipo'        => 'nullable|in:AGENCIA,DOMICILIO,agencia,domicilio',
+    'ubigeo'            => 'nullable|array',
     'comprobante'       => 'nullable|in:BO,FA,bo,fa',
     'factura'           => 'nullable|array',
     'boleta'            => 'nullable|array',
@@ -110,7 +113,8 @@ class PedidoPagoController extends Controller
 
                     $total += $precio * $it['cantidad'];
                 }
-                $pedido->total = $total;
+                $envio = $this->aplicarEnvio($pedido, $data);
+                $pedido->total = $total + $envio;
                 $pedido->save();
 
                 $pedido->load('detalles.producto');
@@ -196,7 +200,8 @@ class PedidoPagoController extends Controller
 
                 $total += $precio * $it['cantidad'];
             }
-            $pedido->total = $total;
+            $envio = $this->aplicarEnvio($pedido, $data);
+            $pedido->total = $total + $envio;
             $pedido->save();
 
             // Emisión SUNAT: no tumbar el pedido si falla (timeout/cert)
@@ -458,6 +463,26 @@ class PedidoPagoController extends Controller
             }
         }
 
+        [$envioCosto, $envioEtiqueta] = $this->leerEnvio($p);
+        $dets = $p->detalles->map(function ($d) {
+            return [
+                'id_producto'     => $d->id_producto,
+                'producto'        => $d->producto?->nombre,
+                'cantidad'        => $d->cantidad,
+                'precio_unitario' => $d->precio_unitario,
+                'subtotal'        => $d->cantidad * $d->precio_unitario,
+            ];
+        })->values();
+        if ($envioCosto > 0) {
+            $dets->push([
+                'id_producto'     => 0,
+                'producto'        => $envioEtiqueta ?: 'Envío',
+                'cantidad'        => 1,
+                'precio_unitario' => $envioCosto,
+                'subtotal'        => $envioCosto,
+            ]);
+        }
+
         return [
             'id_pedido'         => $p->id_pedido,
             'fecha_pedido'      => $p->fecha_pedido?->format('Y-m-d H:i:s'),
@@ -479,15 +504,49 @@ class PedidoPagoController extends Controller
                 'cdr'    => $cdrUrl,
             ] : null,
 
-            'detalles' => $p->detalles->map(function ($d) {
-                return [
-                    'id_producto'     => $d->id_producto,
-                    'producto'        => $d->producto?->nombre,
-                    'cantidad'        => $d->cantidad,
-                    'precio_unitario' => $d->precio_unitario,
-                    'subtotal'        => $d->cantidad * $d->precio_unitario,
-                ];
-            }),
+            'detalles' => $dets,
+            'costo_envio' => $envioCosto,
+            'envio_etiqueta' => $envioEtiqueta,
         ];
+    }
+
+    /** @param array<string,mixed> $data */
+    private function aplicarEnvio(Pedido $pedido, array $data): float
+    {
+        $info = TarifaEnvio::desdeRequest($data);
+        $costo = round((float) $info['costo'], 2);
+        $etiq = (string) $info['etiqueta'];
+        if (Schema::hasColumn('pedidos', 'costo_envio')) {
+            $pedido->costo_envio = $costo;
+        }
+        if (Schema::hasColumn('pedidos', 'envio_etiqueta')) {
+            $pedido->envio_etiqueta = $etiq;
+        }
+        $obs = trim((string) ($pedido->observacion ?? ''));
+        $pedido->observacion = trim($obs.' ENVIO:'.$costo.'|'.$etiq);
+
+        return $costo;
+    }
+
+    /** @return array{0:float,1:string} */
+    private function leerEnvio(Pedido $p): array
+    {
+        $costo = 0.0;
+        $etiq = '';
+        if (isset($p->costo_envio)) {
+            $costo = (float) $p->costo_envio;
+        }
+        if (!empty($p->envio_etiqueta)) {
+            $etiq = (string) $p->envio_etiqueta;
+        }
+        if ($costo <= 0 && preg_match('/ENVIO:([0-9.]+)\|([^\\n]+)/', (string) $p->observacion, $m)) {
+            $costo = (float) $m[1];
+            $etiq = trim($m[2]);
+        }
+        if ($costo > 0 && $etiq === '') {
+            $etiq = 'Envío';
+        }
+
+        return [$costo, $etiq];
     }
 }

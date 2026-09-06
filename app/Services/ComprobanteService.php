@@ -128,6 +128,38 @@ class ComprobanteService
             $mtoTotal   += $totalDet;
         }
 
+        $envioCosto = 0.0;
+        $envioEtiqueta = 'Envío';
+        if (isset($pedido->costo_envio) && (float) $pedido->costo_envio > 0) {
+            $envioCosto = (float) $pedido->costo_envio;
+            $envioEtiqueta = $pedido->envio_etiqueta ?: 'Envío';
+        } elseif (preg_match('/ENVIO:([0-9.]+)\|([^\n]+)/', (string) ($pedido->observacion ?? ''), $m)) {
+            $envioCosto = (float) $m[1];
+            $envioEtiqueta = trim($m[2]) ?: 'Envío';
+        }
+        if ($envioCosto > 0) {
+            $pUnitConIGV = round($envioCosto, 2);
+            $pUnitSinIGV = round($pUnitConIGV / (1 + $igv), 6);
+            $base        = round($pUnitSinIGV, 2);
+            $igvDet      = round($base * $igv, 2);
+            $detalles[] = (new SaleDetail())
+                ->setCodProducto('ENVIO')
+                ->setUnidad('ZZ')
+                ->setCantidad(1)
+                ->setMtoValorUnitario($pUnitSinIGV)
+                ->setDescripcion($envioEtiqueta)
+                ->setMtoBaseIgv($base)
+                ->setPorcentajeIgv($igv * 100)
+                ->setIgv($igvDet)
+                ->setTipAfeIgv('10')
+                ->setTotalImpuestos($igvDet)
+                ->setMtoValorVenta($base)
+                ->setMtoPrecioUnitario($pUnitConIGV);
+            $mtoGravada += $base;
+            $mtoIGV     += $igvDet;
+            $mtoTotal   += $pUnitConIGV;
+        }
+
         // -------- Comprobante --------
         $tz = new DateTimeZone('America/Lima');
         $emision = $pedido->fecha_pedido
