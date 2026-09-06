@@ -332,6 +332,116 @@ class ComprobanteService
         ];
     }
 
+    /** Genera el PDF del pedido si falta (sin reenviar a SUNAT). */
+    public function asegurarPdf(Pedido $pedido): ?string
+    {
+        $pedido->loadMissing(['cliente', 'detalles.producto']);
+        if ($pedido->sunat_pdf && Storage::disk('public')->exists($pedido->sunat_pdf)) {
+            return $pedido->sunat_pdf;
+        }
+
+        $igv = (float) env('SUNAT_IGV', 0.18);
+        $tipo = strtoupper((string) ($pedido->comprobante_tipo ?: 'BO'));
+        if (!in_array($tipo, ['FA', 'BO'], true)) {
+            $tipo = 'BO';
+        }
+        $serie = $pedido->comprobante_serie ?: ($tipo === 'FA' ? 'F001' : 'B001');
+        $numero = (int) $pedido->comprobante_numero;
+        if ($numero <= 0) {
+            $numero = (int) $pedido->id_pedido;
+        }
+        $num8 = str_pad((string) $numero, 8, '0', STR_PAD_LEFT);
+        $friendly = "{$serie}-{$num8}";
+
+        $cuenta = $pedido->cliente;
+        $cliNombre = trim(trim((string) ($cuenta?->nombre ?? '')).' '.trim((string) ($cuenta?->apellido ?? ''))) ?: 'CLIENTE';
+        $cliDir = trim((string) ($pedido->direccion_entrega ?: ($cuenta?->direccion ?? ''))) ?: '-';
+        $cliNumDoc = $tipo === 'FA' ? '00000000000' : '00000000';
+
+        $envioCosto = 0.0;
+        $envioEtiqueta = 'Envío';
+        if (isset($pedido->costo_envio) && (float) $pedido->costo_envio > 0) {
+            $envioCosto = (float) $pedido->costo_envio;
+            $envioEtiqueta = $pedido->envio_etiqueta ?: 'Envío';
+        }
+
+        $mtoTotal = 0.0;
+        $pdfItems = [];
+        foreach ($pedido->detalles as $d) {
+            $pdfItems[] = (object) [
+                'id_producto' => $d->id_producto,
+                'producto' => (object) ['nombre' => $d->producto?->nombre ?? ('Producto #'.$d->id_producto)],
+                'cantidad' => $d->cantidad,
+                'precio_unitario' => $d->precio_unitario,
+            ];
+            $mtoTotal += (float) $d->cantidad * (float) $d->precio_unitario;
+        }
+        if ($envioCosto > 0) {
+            $pdfItems[] = (object) [
+                'id_producto' => 'ENVIO',
+                'producto' => (object) ['nombre' => $envioEtiqueta],
+                'cantidad' => 1,
+                'precio_unitario' => $envioCosto,
+            ];
+            $mtoTotal += $envioCosto;
+        }
+        if ($mtoTotal <= 0 && (float) $pedido->total > 0) {
+            $mtoTotal = (float) $pedido->total;
+        }
+        $mtoGravada = round($mtoTotal / (1 + $igv), 2);
+        $mtoIGV = round($mtoTotal - $mtoGravada, 2);
+
+        $logoB64 = null;
+        foreach (['brand/logo_edorado.jpeg', 'Brand/logo_edorado.jpeg'] as $relLogo) {
+            $logoPath = public_path($relLogo);
+            if (is_file($logoPath)) {
+                $logoB64 = 'data:image/jpeg;base64,'.base64_encode((string) file_get_contents($logoPath));
+                break;
+            }
+        }
+
+        $html = View::make('fe.comprobante', [
+            'tipo' => $tipo,
+            'serie' => $serie,
+            'numero' => $num8,
+            'emisor' => [
+                'ruc' => env('SUNAT_RUC'),
+                'ruc_visual' => env('EMP_RUC_VISUAL', env('SUNAT_RUC')),
+                'razon' => env('EMP_RAZON', 'MI EMPRESA SAC'),
+                'comercial' => env('EMP_COMERCIAL', 'MI EMPRESA'),
+                'direccion' => trim((string) env('EMP_DIRECCION', '-').' '.(string) env('EMP_DIST', '').', '.(string) env('EMP_PROV', '').', '.(string) env('EMP_DEPA', '')),
+            ],
+            'cliente' => [
+                'doc_label' => $tipo === 'FA' ? 'RUC' : 'DNI',
+                'doc' => $cliNumDoc,
+                'nombre' => $cliNombre,
+                'direccion' => $cliDir,
+            ],
+            'moneda' => 'PEN (PEN)',
+            'mto_gravada' => number_format($mtoGravada, 2, '.', ''),
+            'mto_igv' => number_format($mtoIGV, 2, '.', ''),
+            'mto_total' => number_format($mtoTotal, 2, '.', ''),
+            'legend' => 'SON: '.$this->montoEnLetras($mtoTotal).' SOLES',
+            'items' => $pdfItems,
+            'hash' => '-',
+            'qrB64' => null,
+            'logoB64' => $logoB64,
+            'emitido' => optional($pedido->fecha_pedido)->timezone('America/Lima')->format('Y-m-d H:i:s') ?: date('Y-m-d H:i:s'),
+        ])->render();
+
+        $dompdf = new Dompdf(['isRemoteEnabled' => true]);
+        $dompdf->loadHtml($html, 'UTF-8');
+        $dompdf->setPaper('A4');
+        $dompdf->render();
+
+        $pdfRel = "comprobantes/pdf/{$tipo}/{$serie}/{$pedido->id_pedido}-{$friendly}.pdf";
+        Storage::disk('public')->put($pdfRel, $dompdf->output());
+        $pedido->sunat_pdf = $pdfRel;
+        $pedido->save();
+
+        return $pdfRel;
+    }
+
     private function montoEnLetras(float $monto): string
     {
         $enteros = (int)$monto;

@@ -81,6 +81,14 @@ class FeController extends Controller
             'cdr' => $pedido->sunat_cdr,
             default => null,
         };
+        if ($kind === 'pdf' && (!$rel || !Storage::disk('public')->exists($rel))) {
+            try {
+                $rel = app(\App\Services\ComprobanteService::class)->asegurarPdf($pedido);
+            } catch (\Throwable $e) {
+                \Log::warning('[fe.pedidoFile] pdf '.$id.': '.$e->getMessage());
+                $rel = null;
+            }
+        }
         if (!$rel || !Storage::disk('public')->exists($rel)) {
             return $this->feFileResponse(null, 404, 'Archivo no disponible.');
         }
