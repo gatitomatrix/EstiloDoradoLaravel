@@ -20,12 +20,11 @@ class GeoController extends Controller
         $q = trim((string)$request->query('q', ''));
         if ($q === '') return response()->json([]);
 
+        // sanea y recorta (Nominatim recomienda consultas razonables)
         $q = Str::of($q)->substr(0, 200)->__toString();
-        // "Av. X, 28" → "Av. X 28" (Nominatim suele ignorar el número si va tras coma)
-        $q = preg_replace('/,\s*(\d{1,5}[A-Za-z]?)\b/', ' $1', $q) ?? $q;
 
         $cacheMin = (int)config('services.geo.cache_min', 1440);
-        $key = 'geo:nominatim:v2:' . md5($q);
+        $key = 'geo:nominatim:' . md5($q);
 
         return Cache::remember($key, now()->addMinutes($cacheMin), function () use ($q) {
             try {
@@ -36,26 +35,20 @@ class GeoController extends Controller
                 $ua     = 'EstiloDorado/1.0 (Laravel API)'.($email ? " <$email>" : '');
 
                 $params = [
-                    'format'          => 'jsonv2',
-                    'limit'           => 8,
+                    'format'          => 'json',
+                    'limit'           => 3,
                     'addressdetails'  => 1,
                     'q'               => $q,
                     'countrycodes'    => 'pe',
-                    'dedupe'          => 1,
                 ];
-                if ($email) $params['email'] = $email;
+                if ($email) $params['email'] = $email; // recomendado por política
 
                 $res = Http::withHeaders(['User-Agent' => $ua])
                     ->withOptions(['verify' => $verify, 'timeout' => $timeout])
                     ->get("$base/search", $params);
 
                 if ($res->successful()) {
-                    $hits = $res->json();
-                    if (! is_array($hits)) {
-                        return [];
-                    }
-
-                    return self::rankHits($hits, $q);
+                    return $res->json();
                 }
 
                 // Si hay 429/503 u otro, devolvemos vacío pero sin romper UX
@@ -92,7 +85,7 @@ class GeoController extends Controller
             'lat'            => $lat,
             'lon'            => $lon,
             'addressdetails' => 1,
-            'zoom'           => 20, // más granular para captar número
+            'zoom'           => 17,
         ];
         if ($email) $params['email'] = $email;
 
@@ -122,45 +115,5 @@ class GeoController extends Controller
     } catch (\Throwable $e) {
         \Log::warning('[Geo reverse] '.$e->getMessage());
         return response()->json(null, 204);
-    }
-}
-
-    /** @param list<array<string,mixed>> $hits */
-    private static function rankHits(array $hits, string $q): array
-    {
-        $wantNum = '';
-        if (preg_match('/\b(\d{1,5}[A-Za-z]?)\b/', $q, $m)) {
-            $wantNum = strtoupper($m[1]);
-        }
-        usort($hits, function ($a, $b) use ($wantNum) {
-            return self::scoreHit($b, $wantNum) <=> self::scoreHit($a, $wantNum);
-        });
-
-        return array_values($hits);
-    }
-
-    /** @param array<string,mixed> $h */
-    private static function scoreHit(array $h, string $wantNum): float
-    {
-        $s = ((float) ($h['importance'] ?? 0)) * 12;
-        $addr = is_array($h['address'] ?? null) ? $h['address'] : [];
-        $hn = strtoupper((string) ($addr['house_number'] ?? ''));
-        if ($wantNum !== '') {
-            if ($hn !== '' && $hn === $wantNum) {
-                $s += 80;
-            } elseif ($hn !== '' && str_contains($hn, $wantNum)) {
-                $s += 30;
-            }
-        }
-        $cls = (string) ($h['class'] ?? '');
-        $type = (string) ($h['type'] ?? '');
-        if (in_array($type, ['house', 'building', 'yes'], true) || $cls === 'building') {
-            $s += 12;
-        }
-        if ($cls === 'highway' && $hn === '') {
-            $s -= 8;
-        }
-
-        return $s;
     }
 }
