@@ -52,6 +52,7 @@ class PedidoAdminController extends Controller
         if ($per <= 0) {
             $rows = $q->get()->map(fn($p) => $this->decorateRow($p));
             $this->attachItems($rows);
+            $this->attachFechaEstado($rows);
             return response()->json([
                 'data' => $rows,
                 'meta' => ['total' => $rows->count()],
@@ -61,6 +62,7 @@ class PedidoAdminController extends Controller
         $p = $q->paginate($per, ['*'], 'page', $page);
         $p->getCollection()->transform(fn($row) => $this->decorateRow($row));
         $this->attachItems($p->getCollection());
+        $this->attachFechaEstado($p->getCollection());
 
         return response()->json([
             'data' => $p->items(),
@@ -132,6 +134,7 @@ class PedidoAdminController extends Controller
         $p->xml_url = $urls['xml'] ?? null;
         $p->cdr_url = $urls['cdr'] ?? null;
         $this->attachItems(collect([$p]));
+        $this->attachFechaEstado(collect([$p]));
 
         return $p;
     }
@@ -212,12 +215,11 @@ class PedidoAdminController extends Controller
 
     /**
      * PUT/PATCH /api/admin/pedidos/{id}
-     * Solo editable: fecha_pedido, estado, forma_pago
+     * Editable: estado, forma_pago. fecha_pedido no se pisa (es la hora de la compra).
      */
     public function update($id, Request $request)
     {
         $data = $request->validate([
-            'fecha_pedido' => 'nullable|date',
             'estado'       => 'required|in:pendiente,pagado,enviado,entregado,cancelado',
             'forma_pago'   => 'nullable|in:tarjeta,yape,efectivo',
         ]);
@@ -226,7 +228,6 @@ class PedidoAdminController extends Controller
         if (!$p) return response()->json(['message'=>'Pedido no encontrado'],404);
 
         $antes = strtolower((string) $p->estado);
-        if (isset($data['fecha_pedido'])) $p->fecha_pedido = $data['fecha_pedido'];
         $p->estado     = $data['estado'];
         if (array_key_exists('forma_pago',$data)) $p->forma_pago = $data['forma_pago'];
         $p->save();
@@ -234,6 +235,13 @@ class PedidoAdminController extends Controller
         $despues = strtolower((string) $p->estado);
         if ($antes !== $despues) {
             app(\App\Services\StockPedidoService::class)->aplicarCambioEstado($p, $antes, $despues);
+            \App\Models\PedidoEstadoHistorial::create([
+                'id_pedido'       => $p->id_pedido,
+                'estado_anterior' => $antes,
+                'estado_nuevo'    => $despues,
+                'fecha'           => now(),
+                'comentario'      => 'Cambio desde panel de pedidos',
+            ]);
         }
 
         $row = Pedido::leftJoin('clientes as c','c.id_cliente','=','pedidos.id_cliente')
@@ -242,6 +250,7 @@ class PedidoAdminController extends Controller
 
         $dec = $this->decorateRow($row);
         $this->attachItems(collect([$dec]));
+        $this->attachFechaEstado(collect([$dec]));
         return response()->json($dec);
     }
 
@@ -343,6 +352,24 @@ class PedidoAdminController extends Controller
             $r->producto_label = $first
                 ? ($first['nombre'].' ×'.$first['cantidad'].($extra > 0 ? ' +'.$extra : ''))
                 : '—';
+        }
+    }
+
+    private function attachFechaEstado($rows): void
+    {
+        $list = collect($rows);
+        $ids = $list->pluck('id_pedido')->filter()->all();
+        if (! $ids) {
+            return;
+        }
+        $last = DB::table('pedido_estado_historial')
+            ->select('id_pedido', DB::raw('MAX(fecha) as fecha_estado'))
+            ->whereIn('id_pedido', $ids)
+            ->groupBy('id_pedido')
+            ->get()
+            ->keyBy('id_pedido');
+        foreach ($list as $r) {
+            $r->fecha_estado = optional($last->get($r->id_pedido))->fecha_estado;
         }
     }
 

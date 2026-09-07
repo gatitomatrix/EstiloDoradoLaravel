@@ -16,9 +16,14 @@ class PedidoClienteController extends Controller
         $cliente = $request->user();
 
         $pedidos = Pedido::where('id_cliente', $cliente->id_cliente)
-            ->with(['detalles.producto'])
+            ->with(['detalles.producto', 'historial' => fn ($q) => $q->orderByDesc('fecha')])
             ->orderByDesc('id_pedido')
-            ->get();
+            ->get()
+            ->map(function ($p) {
+                $p->fecha_estado = optional($p->historial->first())->fecha;
+                $p->setRelation('historial', $p->historial->take(8)->values());
+                return $p;
+            });
 
         return response()->json($pedidos);
     }
@@ -32,8 +37,9 @@ class PedidoClienteController extends Controller
 
         $pedido = Pedido::where('id_pedido', $id)
             ->where('id_cliente', $cliente->id_cliente)
-            ->with(['detalles.producto'])
+            ->with(['detalles.producto', 'historial' => fn ($q) => $q->orderByDesc('fecha')])
             ->firstOrFail();
+        $pedido->fecha_estado = optional($pedido->historial->first())->fecha;
 
         return response()->json($pedido);
     }
