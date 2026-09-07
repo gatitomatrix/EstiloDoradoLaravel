@@ -20,12 +20,21 @@ class StockPedidoService
         if ($antes === $despues) {
             return;
         }
-        if (in_array($despues, ['entregado', 'completado'], true) && $antes !== 'cancelado') {
-            $this->confirmarEntrega($pedido);
-            return;
-        }
+
         if ($despues === 'cancelado') {
             $this->devolver($pedido);
+
+            return;
+        }
+
+        $vivos = ['pendiente', 'pagado', 'enviado', 'entregado', 'completado'];
+        if (in_array($despues, $vivos, true) && ! $this->yaReservado($pedido)) {
+            // Cancelado → vuelve a la venta: descuenta de nuevo si hay stock.
+            $this->reservar($pedido, false);
+        }
+
+        if (in_array($despues, ['entregado', 'completado'], true)) {
+            $this->confirmarEntrega($pedido);
         }
     }
 

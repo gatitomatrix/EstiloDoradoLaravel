@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\Admin;
 
+use App\Exceptions\InsufficientStockException;
 use App\Http\Controllers\Controller;
 use App\Models\Pedido;
 use App\Models\DetallePedido;
@@ -228,20 +229,34 @@ class PedidoAdminController extends Controller
         if (!$p) return response()->json(['message'=>'Pedido no encontrado'],404);
 
         $antes = strtolower((string) $p->estado);
-        $p->estado     = $data['estado'];
-        if (array_key_exists('forma_pago',$data)) $p->forma_pago = $data['forma_pago'];
-        $p->save();
+        $despues = strtolower((string) $data['estado']);
 
-        $despues = strtolower((string) $p->estado);
-        if ($antes !== $despues) {
-            app(\App\Services\StockPedidoService::class)->aplicarCambioEstado($p, $antes, $despues);
-            \App\Models\PedidoEstadoHistorial::create([
-                'id_pedido'       => $p->id_pedido,
-                'estado_anterior' => $antes,
-                'estado_nuevo'    => $despues,
-                'fecha'           => now(),
-                'comentario'      => 'Cambio desde panel de pedidos',
-            ]);
+        try {
+            DB::transaction(function () use ($p, $data, $antes, $despues) {
+                $p->estado = $data['estado'];
+                if (array_key_exists('forma_pago', $data)) {
+                    $p->forma_pago = $data['forma_pago'];
+                }
+                $p->save();
+
+                if ($antes !== $despues) {
+                    app(\App\Services\StockPedidoService::class)->aplicarCambioEstado($p, $antes, $despues);
+                    \App\Models\PedidoEstadoHistorial::create([
+                        'id_pedido'       => $p->id_pedido,
+                        'estado_anterior' => $antes,
+                        'estado_nuevo'    => $despues,
+                        'fecha'           => now(),
+                        'comentario'      => 'Cambio desde panel de pedidos',
+                    ]);
+                }
+            });
+        } catch (InsufficientStockException $e) {
+            $nombres = collect($e->detalles)->pluck('nombre')->filter()->implode(', ');
+
+            return response()->json([
+                'message' => 'No hay stock suficiente para reactivar este pedido'.($nombres ? ': '.$nombres : '.').' El estado no se cambió.',
+                'detalles' => $e->detalles,
+            ], 422);
         }
 
         $row = Pedido::leftJoin('clientes as c','c.id_cliente','=','pedidos.id_cliente')
