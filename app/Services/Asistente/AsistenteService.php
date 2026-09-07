@@ -160,6 +160,8 @@ class AsistenteService
             'suggestions' => $this->suggestions($cliente !== null),
             'action' => null,
             'awaiting' => null,
+            'intent' => $intent,
+            'log_tipo' => $showProducts ? 'catalogo' : ($pedido && $cliente ? 'pedido' : null),
         ];
     }
 

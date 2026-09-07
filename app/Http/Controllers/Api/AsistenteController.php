@@ -135,11 +135,34 @@ class AsistenteController extends Controller
             }
             $logTipo = $result['log_tipo'] ?? '';
             $wa = ! empty($result['action']) && (($result['action']['type'] ?? '') === 'whatsapp');
-            // Pasos intermedios de la queja (detalle, pedido, celular): un solo log al WhatsApp.
             if ($logTipo === 'queja_espera') {
                 return;
             }
             $n = is_array($result['products'] ?? null) ? count($result['products']) : 0;
+            $esQueja = $wa || $logTipo === 'whatsapp' || ! empty($result['queja_tipo']);
+            $hayPedido = ! empty($result['pedido']);
+            $esFaq = (bool) preg_match(
+                '/c[oó]mo\s+(compro|pago|me\s+registro)|m[eé]todos?\s+de\s+pago|qu[eé]\s+es\s+culqi|iniciar\s+sesi[oó]n|mi\s+cuenta|olvide|contrase[nñ]a|d[oó]nde\s+queda|horario|qu[eé]\s+puedes\s+hacer|ayuda$/u',
+                $m
+            );
+            $buscaProducto = (bool) preg_match(
+                '/busco|tienen|hay\s|\bprecio\b|cuesta|\bstock\b|quiero|regalo|hot\s*wheels|cerdit|cajit|flores|billetera|peluche|personaliz|cumple|para\s+(mi|el|la|un)/u',
+                $m
+            );
+
+            // Solo lo que sirve al admin: productos, hueco de catálogo, queja, pedido con cuenta.
+            if ($n === 0 && ! $esQueja) {
+                if ($esFaq) {
+                    return;
+                }
+                if ($hayPedido && ! $cliente) {
+                    return;
+                }
+                if (! $hayPedido && ! $buscaProducto) {
+                    return;
+                }
+            }
+
             $nombres = [];
             $cards = [];
             foreach ($result['products'] ?? [] as $p) {
@@ -155,7 +178,9 @@ class AsistenteController extends Controller
                     'imagen_url' => $p['imagen_url'] ?? null,
                 ];
             }
-            $tipo = $logTipo !== '' ? $logTipo : ($wa ? 'whatsapp' : ($n > 0 ? 'catalogo' : 'sin_producto'));
+            $tipo = $logTipo !== ''
+                ? $logTipo
+                : ($wa ? 'whatsapp' : ($n > 0 ? 'catalogo' : ($hayPedido && $cliente ? 'pedido' : 'sin_producto')));
             $phone = preg_replace('/\D+/', '', (string) ($result['complaint']['phone'] ?? '')) ?? '';
             if (strlen($phone) < 9 && $cliente) {
                 $phone = preg_replace('/\D+/', '', (string) ($cliente->telefono ?? '')) ?? '';
