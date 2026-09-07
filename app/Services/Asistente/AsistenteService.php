@@ -122,8 +122,7 @@ class AsistenteService
         $reply = null;
         $used = 'rules';
         // Con Gemini el FAQ también va al LLM (más conversacional). Ollama sigue saltando chips para no tardar.
-        $skipLlm = $driver !== 'gemini'
-            && in_array($intent, ['help', 'howto', 'payment', 'account', 'catalog', 'catalog_count'], true);
+        $skipLlm = in_array($intent, ['help', 'howto', 'payment', 'account', 'catalog', 'catalog_count', 'offtopic'], true);
 
         if (! $skipLlm && in_array($driver, ['ollama', 'gemini'], true)) {
             $system = $this->systemPrompt();

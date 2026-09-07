@@ -22,7 +22,8 @@ class GeminiClient
             .$model.':generateContent?key='.urlencode($apiKey);
 
         try {
-            $response = Http::timeout($timeout)
+            $response = Http::connectTimeout(8)
+                ->timeout($timeout)
                 ->acceptJson()
                 ->post($url, [
                     'system_instruction' => [
@@ -35,8 +36,8 @@ class GeminiClient
                         ],
                     ],
                     'generationConfig' => [
-                        'temperature' => 0.55,
-                        'maxOutputTokens' => 700,
+                        'temperature' => 0.4,
+                        'maxOutputTokens' => 360,
                     ],
                 ]);
 

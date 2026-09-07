@@ -33,6 +33,13 @@ class AsistenteAdminController extends Controller
         if ($after > 0) {
             $nuevos = (clone $q)->where('id', '>', $after)->orderBy('id')->limit(20)->get()
                 ->map(fn ($r) => $this->present($r));
+
+            return response()->json([
+                'stats' => null,
+                'items' => [],
+                'max_id' => $maxId,
+                'nuevos' => $nuevos,
+            ]);
         }
 
         $itemsQ = DB::table('asistente_logs')->orderByDesc('id');
