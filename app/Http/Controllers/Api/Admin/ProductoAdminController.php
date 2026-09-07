@@ -47,6 +47,9 @@ class ProductoAdminController extends Controller
 
         if ($request->filled('proveedor')) $q->where('id_proveedor',$request->proveedor);
         if ($request->filled('estado'))    $q->where('estado',$request->estado);
+        if ($request->filled('stock_max')) {
+            $q->where('stock', '<=', max(0, (int) $request->stock_max));
+        }
 
         if ($per <= 0) {
             $rows = $q->orderBy($sort,$order)->get();
