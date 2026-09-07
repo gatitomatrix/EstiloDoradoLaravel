@@ -26,7 +26,7 @@ class ConsultaRucController extends Controller
             return response()->json(['ok' => false, 'message' => 'El RUC debe tener 11 dígitos.'], 422);
         }
 
-        $data = Cache::remember('ruc:'.$ruc, now()->addDays(7), function () use ($ruc) {
+        $data = Cache::remember('ruc:v2:'.$ruc, now()->addDays(7), function () use ($ruc) {
             try {
                 $res = Http::timeout(6)
                     ->withHeaders([
@@ -44,7 +44,7 @@ class ConsultaRucController extends Controller
                 }
 
                 $ubi = preg_replace('/\D/', '', (string) ($j['ubigeo'] ?? '')) ?? '';
-                $dep = strlen($ubi) >= 2 ? (self::DEPS[substr($ubi, 0, 2)] ?? null) : null;
+                $geo = self::fromUbigeo($ubi);
 
                 return [
                     'ruc' => $j['ruc'] ?? $ruc,
@@ -52,7 +52,9 @@ class ConsultaRucController extends Controller
                     'direccion' => $j['direccion'] ?? '',
                     'estado' => $j['estado'] ?? null,
                     'condicion' => $j['condicion'] ?? null,
-                    'departamento' => $dep,
+                    'departamento' => $geo['departamento'],
+                    'provincia' => $geo['provincia'],
+                    'distrito' => $geo['distrito'],
                     'ubigeo' => $ubi ?: null,
                 ];
             } catch (\Throwable $e) {
@@ -67,5 +69,37 @@ class ConsultaRucController extends Controller
         }
 
         return response()->json(['ok' => true, 'data' => $data]);
+    }
+
+    /** @return array{departamento:?string,provincia:?string,distrito:?string} */
+    private static function fromUbigeo(string $ubi): array
+    {
+        $empty = ['departamento' => null, 'provincia' => null, 'distrito' => null];
+        if (strlen($ubi) < 2) {
+            return $empty;
+        }
+        $dep = self::DEPS[substr($ubi, 0, 2)] ?? null;
+        $prov = null;
+        $dist = null;
+        $path = resource_path('data/ubigeo-inei.json');
+        if (is_file($path) && strlen($ubi) >= 6) {
+            static $cat = null;
+            if ($cat === null) {
+                $cat = json_decode((string) file_get_contents($path), true) ?: [];
+            }
+            $row = $cat['distritos'][$ubi] ?? null;
+            $provId = is_array($row) ? (string) ($row['provincia_id'] ?? substr($ubi, 0, 4)) : substr($ubi, 0, 4);
+            $prov = isset($cat['provincias'][$provId]) ? trim((string) $cat['provincias'][$provId]) : null;
+            $dist = is_array($row) ? trim((string) ($row['distrito'] ?? '')) : null;
+            if ($prov && preg_match('/callao/iu', $prov)) {
+                $prov = 'Callao';
+            }
+        }
+
+        return [
+            'departamento' => $dep,
+            'provincia' => $prov ?: null,
+            'distrito' => $dist ?: null,
+        ];
     }
 }
