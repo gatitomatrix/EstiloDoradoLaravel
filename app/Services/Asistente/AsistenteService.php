@@ -59,6 +59,10 @@ class AsistenteService
             return $this->handleAddToCart($message, $offeredIds);
         }
 
+        if ($intent === 'order') {
+            return $this->handleOrderQuery($message, $cliente);
+        }
+
         if ($intent === 'courtesy') {
             return [
                 'reply' => '¡Con gusto! Si se te ocurre otro regalo o producto, aquí estoy.',
@@ -122,7 +126,7 @@ class AsistenteService
         $reply = null;
         $used = 'rules';
         // Gemini en producto, catálogo y cómo comprar. No gastar tokens en hola / fuera de tema.
-        $skipLlm = in_array($intent, ['help', 'offtopic'], true);
+        $skipLlm = in_array($intent, ['help', 'offtopic', 'order'], true);
 
         if (! $skipLlm && in_array($driver, ['ollama', 'gemini'], true)) {
             $system = $this->systemPrompt();
@@ -230,15 +234,18 @@ TXT;
         $m = mb_strtolower($message);
 
         $addCue = (bool) preg_match('/agrega|a[nñ]ade|al\s+carrito|me\s+llevo|ponme|ponlo|quiero\s+(esa|ese|esta|este|la|el|una|uno|\d)|la\s+primera|la\s+segunda|la\s+\d/u', $m);
-        if ($hasOffered && $addCue) {
+        if ($hasOffered && $addCue && ! preg_match('/pedido|compras/u', $m)) {
             return 'add_to_cart';
         }
-        if ($hasOffered && preg_match('/^(quiero|dame|me\s+das)\b/u', $m)) {
+        if ($hasOffered && preg_match('/^(quiero|dame|me\s+das)\b/u', $m) && ! preg_match('/pedido|compras/u', $m)) {
             return 'add_to_cart';
         }
 
         if (preg_match('/registr|cuenta|usuario|crear\s*cuenta|sign\s*up|login|iniciar\s*sesi/u', $m)) {
             return 'account';
+        }
+        if (preg_match('/pedido|seguimiento|estado\s+de\s+mi|mis\s+compras|mis\s+pedidos/u', $m)) {
+            return 'order';
         }
         if (preg_match('/c[oó]mo\s+(hago|puedo|hago\s+para)?.{0,28}compr|para\s+comprar|c[oó]mo\s+compr|pasos.{0,12}compr|carrito|delivery|recojo|env[ií]o/u', $m)
             && ! preg_match('/agrega|a[nñ]ade|busco|billetera|cerdit|cajit|flores|hot\s*wheels/u', $m)) {
@@ -251,9 +258,6 @@ TXT;
 
         if (preg_match('/cumplea|cumple\b|recomend|regalo|regalar|aniversario|para\s+(una?\s+)?(mujer|chica|dama|se[nñ]orita)|novia|hermana|pap[aá]|padre|esposo/u', $m)) {
             return 'product';
-        }
-        if (preg_match('/pedido|seguimiento|estado\s+de\s+mi/u', $m)) {
-            return 'order';
         }
         if (preg_match('/cu[aá]ntos\s+product|cu[aá]ntas\s+cosas|total\s+del\s+cat[aá]logo|variedad/u', $m)) {
             return 'catalog_count';
@@ -289,6 +293,121 @@ TXT;
         }
 
         return 'product';
+    }
+
+    private function handleOrderQuery(string $message, ?Cliente $cliente): array
+    {
+        $login = [
+            'reply' => 'Para ver tus pedidos inicia sesión con la cuenta con la que compraste. Luego te muestro los últimos 3 y el enlace a Mis compras.',
+            'driver' => 'rules',
+            'products' => [],
+            'pedido' => null,
+            'pedidos' => [],
+            'suggestions' => ['¿Cómo me registro?', '¿Cómo compro?'],
+            'action' => ['type' => 'login', 'label' => 'Iniciar sesión'],
+            'awaiting' => null,
+            'log_tipo' => 'pedido',
+        ];
+        if (! $cliente) {
+            return $login;
+        }
+
+        $one = null;
+        if (preg_match('/\b(?:pedido\s*#?\s*|n[uú]mero\s*|orden\s*#?\s*)(\d{1,8})\b/iu', $message, $m)
+            || preg_match('/\bpedido\s+(\d{1,8})\b/iu', $message, $m)) {
+            $one = $this->findPedido($message, $cliente);
+        }
+
+        $chips = $this->recentOrderChips($cliente, 3);
+        if ($one && ($one['acceso'] ?? null) === 'restringido') {
+            return $login;
+        }
+
+        $link = [
+            'type' => 'navigate',
+            'url' => '/mis-compras',
+            'label' => 'Ver todos en Mis compras',
+        ];
+
+        if ($one && empty($one['acceso'])) {
+            $txt = sprintf(
+                'Tu pedido #%s está en estado «%s». Total: S/ %s. Pago: %s. Entrega: %s. Abajo tienes tus últimos pedidos; para el historial completo usa Mis compras.',
+                $one['id_pedido'],
+                $one['estado'] ?? '—',
+                $one['total'] ?? '—',
+                $one['forma_pago'] ?? '—',
+                $one['direccion_entrega'] ?? '—'
+            );
+
+            return [
+                'reply' => $txt,
+                'driver' => 'rules',
+                'products' => [],
+                'pedido' => $one,
+                'pedidos' => $chips,
+                'suggestions' => ['Estado de mi pedido', '¿Cómo compro?'],
+                'action' => $link,
+                'awaiting' => null,
+                'log_tipo' => 'pedido',
+            ];
+        }
+
+        if ($chips === []) {
+            return [
+                'reply' => 'Aún no veo pedidos en esta cuenta. Cuando compres, aparecerán aquí y en Mis compras.',
+                'driver' => 'rules',
+                'products' => [],
+                'pedido' => null,
+                'pedidos' => [],
+                'suggestions' => ['¿Qué productos tienen?', '¿Cómo compro?'],
+                'action' => $link,
+                'awaiting' => null,
+                'log_tipo' => 'pedido',
+            ];
+        }
+
+        $n = count($chips);
+        $txt = $n === 1
+            ? 'Este es tu pedido más reciente. Para el historial completo entra a Mis compras.'
+            : "Estos son tus últimos {$n} pedidos. Si quieres ver todos, entra a Mis compras.";
+
+        return [
+            'reply' => $txt,
+            'driver' => 'rules',
+            'products' => [],
+            'pedido' => null,
+            'pedidos' => $chips,
+            'suggestions' => ['Estado de mi pedido', '¿Cómo compro?'],
+            'action' => $link,
+            'awaiting' => null,
+            'log_tipo' => 'pedido',
+        ];
+    }
+
+    /** @return list<array<string, mixed>> */
+    private function recentOrderChips(Cliente $cliente, int $limit = 3): array
+    {
+        $rows = Pedido::query()
+            ->with(['detalles.producto'])
+            ->where('id_cliente', $cliente->id_cliente)
+            ->orderByDesc('id_pedido')
+            ->limit($limit)
+            ->get();
+
+        $out = [];
+        foreach ($rows as $p) {
+            $first = $p->detalles->first()?->producto;
+            $out[] = [
+                'id_pedido' => (int) $p->id_pedido,
+                'fecha' => optional($p->fecha_pedido)?->timezone('America/Lima')->format('d/m/Y H:i') ?: '',
+                'total' => number_format((float) $p->total, 2, '.', ''),
+                'estado' => $p->estado,
+                'resumen' => mb_substr((string) ($first?->nombre ?? 'Pedido'), 0, 40),
+                'imagen_url' => $first?->imagen_url,
+            ];
+        }
+
+        return $out;
     }
 
     private function handleAddToCart(string $message, array $offeredIds): array
@@ -712,7 +831,7 @@ TXT;
     {
         if (! preg_match('/\b(?:pedido\s*#?\s*|n[uú]mero\s*|orden\s*#?\s*)(\d{1,8})\b/iu', $message, $m)
             && ! preg_match('/\bpedido\s+(\d{1,8})\b/iu', $message, $m)) {
-            if ($cliente && preg_match('/\b(mi\s+pedido|mis\s+compras|estado\s+de\s+mi|seguimiento)\b/iu', $message)) {
+            if ($cliente && preg_match('/\b(mi\s+pedidos?|mis\s+pedidos?|mis\s+compras|estado\s+de\s+mi|seguimiento|todos\s+mis)\b/iu', $message)) {
                 $p = Pedido::query()
                     ->where('id_cliente', $cliente->id_cliente)
                     ->orderByDesc('id_pedido')
