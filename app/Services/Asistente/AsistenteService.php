@@ -90,6 +90,9 @@ class AsistenteService
 
         $esc = $this->whatsapp->match($message);
         if ($esc) {
+            if ($esc === 'humano') {
+                return $this->handleHumano($message, $cliente);
+            }
             if (in_array($esc, ['reclamo', 'devolucion', 'cobro'], true)) {
                 $tipo = $this->whatsapp->classifyQueja($message) ?: $esc;
 
@@ -293,6 +296,48 @@ TXT;
         }
 
         return 'product';
+    }
+
+    private function handleHumano(string $message, ?Cliente $cliente): array
+    {
+        if (! $cliente) {
+            return [
+                'reply' => 'Para comunicarte con la tienda inicia sesión. Así sabremos quién eres y no se mezcla con otro cliente. Luego te doy el WhatsApp.',
+                'driver' => 'rules',
+                'products' => [],
+                'pedido' => null,
+                'suggestions' => ['¿Cómo me registro?', 'Estado de mi pedido'],
+                'action' => ['type' => 'login', 'label' => 'Iniciar sesión'],
+                'awaiting' => null,
+                'log_tipo' => 'whatsapp',
+                'queja_tipo' => 'humano',
+            ];
+        }
+
+        $nombre = trim(($cliente->nombre ?? '').' '.($cliente->apellido ?? ''));
+        $correo = (string) ($cliente->email ?? '');
+        $txt = 'Hola, soy '.($nombre !== '' ? $nombre : 'cliente');
+        if ($correo !== '') {
+            $txt .= ' ('.$correo.')';
+        }
+        $txt .= '. Quiero comunicarme con la tienda. '.$message;
+        $wa = $this->whatsapp->action($txt, null);
+        $num = $this->whatsapp->displayNumber();
+        $reply = $num
+            ? 'Claro. El WhatsApp de Estilo Dorado es '.$num.'. El botón ya lleva tu nombre para que sepan quién eres.'
+            : 'Claro. Una persona de la tienda te atiende por WhatsApp; el botón ya lleva tu nombre.';
+
+        return [
+            'reply' => $reply,
+            'driver' => 'rules',
+            'products' => [],
+            'pedido' => null,
+            'suggestions' => [],
+            'action' => $wa,
+            'awaiting' => null,
+            'log_tipo' => 'whatsapp',
+            'queja_tipo' => 'humano',
+        ];
     }
 
     private function handleOrderQuery(string $message, ?Cliente $cliente): array

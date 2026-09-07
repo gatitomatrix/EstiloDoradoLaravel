@@ -12,7 +12,7 @@ class WhatsappEscalation
         $m = mb_strtolower(trim($message));
 
         $rules = [
-            'humano' => '/p[aá]same con|hablar con (la |el )?(due[nñ]a|gerente|asesor|persona)|con marlene|agente humano|persona real|quiero un (asesor|humano)/u',
+            'humano' => '/comunicarme|contactar(me)?|p[aá]same con|hablar(le)? (con|al|a)|due[nñ][oa]|gerente|asesor humano|persona real|con marlene|agente humano|quiero un (asesor|humano)/u',
             'reclamo' => '/reclamo|queja|quejarme|me quejo|tengo una queja|inconform|molestia|(mi|el) producto lleg|empapad|aplastad|machucad|abollad|mojad|humedec|malograd|quebr[ao]|da[nñ]ad|no era lo que|producto incorrecto|me lleg[oó].{0,25}(mal|roto|aplast|machuc|aboll|mojad|empap|tarde|sucio|abierto)|lleg[oó].{0,20}(aplast|roto|machuc|empap)|no me lleg[oó]/u',
             'devolucion' => '/devoluci[oó]n|devolverlo|quiero cambiar(lo)? el producto|cambio (del|de) producto/u',
             'cobro' => '/cobr(aron|ado|aste).{0,24}(de\s*m[á]s|demas|dem[á]s|dos veces|doble)|doble cargo|me descontaron (de m[á]s|dos)|cobro (de m[á]s|demas|incorrecto)|me (han )?cobrado de/u',
@@ -149,12 +149,26 @@ class WhatsappEscalation
             'motorizado' => 'No rastreo al motorizado en vivo. La tienda te da el estado del envío.',
             'cupon' => 'No aplico cupones ni descuentos prometidos por otro canal. La tienda te lo confirma.',
             'cancelar_pagado' => 'Un pedido ya pagado no lo cancelo yo. La tienda te dice si se puede y cómo.',
-            'humano' => 'No conecto llamadas desde aquí, pero por WhatsApp te atiende una persona de Estilo Dorado.',
+            'humano' => 'No conecto llamadas desde aquí. El WhatsApp de la tienda aparece abajo; una persona de Estilo Dorado te atiende.',
             'insulto' => 'Prefiero seguir con respeto. Si hay un problema con tu compra, la tienda te atiende por WhatsApp.',
             default => 'Eso lo ve mejor una persona de Estilo Dorado; el chat es para el catálogo y tu compra.',
         };
 
         return $inicio.' '.$cierre;
+    }
+
+    public function displayNumber(): ?string
+    {
+        $num = preg_replace('/\D+/', '', (string) config('llm.whatsapp.number', '')) ?? '';
+        if (strlen($num) === 9 && str_starts_with($num, '9')) {
+            $num = '51'.$num;
+        }
+        if (strlen($num) < 11) {
+            return null;
+        }
+        $local = substr($num, -9);
+
+        return '+51 '.substr($local, 0, 3).' '.substr($local, 3, 3).' '.substr($local, 6);
     }
 
     public function action(string $userMessage, ?int $pedidoId = null): ?array
