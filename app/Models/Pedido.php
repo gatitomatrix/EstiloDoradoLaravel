@@ -28,6 +28,9 @@ class Pedido extends Model
         'sunat_xml',
         'sunat_pdf',
         'sunat_cdr',
+        'comprobantes_json',
+        'lat_entrega',
+        'lng_entrega',
     ];
 
     protected $casts = [

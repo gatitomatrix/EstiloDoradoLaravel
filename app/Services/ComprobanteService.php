@@ -16,6 +16,7 @@ use Greenter\Model\Sale\SaleDetail;
 use Greenter\See;
 use Greenter\Ws\Services\SunatEndpoints;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\View;
 use Carbon\Carbon;
@@ -408,22 +409,85 @@ class ComprobanteService
             $cli['nombre'] = trim((string) ($b['nombres'] ?? ''));
             $cli['direccion'] = trim((string) ($b['direccion'] ?? '')) ?: $cli['direccion'];
         }
+        $prev = [];
+        if (! empty($pedido->comprobantes_json)) {
+            $decoded = json_decode((string) $pedido->comprobantes_json, true);
+            $prev = is_array($decoded) ? $decoded : [];
+        }
+        $meta = array_merge($prev, ['tipo' => $tipo, 'cliente' => $cli]);
+        if (Schema::hasColumn('pedidos', 'comprobantes_json')) {
+            $pedido->comprobantes_json = json_encode($meta, JSON_UNESCAPED_UNICODE);
+            $pedido->save();
+        }
         Storage::disk('public')->put(
             'comprobantes/meta/'.$pedido->id_pedido.'.json',
-            json_encode(['tipo' => $tipo, 'cliente' => $cli], JSON_UNESCAPED_UNICODE)
+            json_encode($meta, JSON_UNESCAPED_UNICODE)
         );
     }
 
     /** @return array{tipo?:string,cliente?:array{doc_label?:string,doc?:string,nombre?:string,direccion?:string}} */
     private function leerMeta(Pedido $pedido): array
     {
+        if (! empty($pedido->comprobantes_json)) {
+            $j = json_decode((string) $pedido->comprobantes_json, true);
+            if (is_array($j) && ! empty($j['cliente']['doc'])) {
+                return $j;
+            }
+            if (is_array($j)) {
+                $fromXml = $this->extraerClienteXml($pedido);
+                if (! empty($fromXml['doc'])) {
+                    $j['cliente'] = array_merge($j['cliente'] ?? [], $fromXml);
+
+                    return $j;
+                }
+                if (! empty($j['cliente'])) {
+                    return $j;
+                }
+            }
+        }
         $rel = 'comprobantes/meta/'.$pedido->id_pedido.'.json';
-        if (!Storage::disk('public')->exists($rel)) {
+        if (Storage::disk('public')->exists($rel)) {
+            $j = json_decode((string) Storage::disk('public')->get($rel), true);
+            if (is_array($j)) {
+                return $j;
+            }
+        }
+        $fromXml = $this->extraerClienteXml($pedido);
+        if (! empty($fromXml['doc'])) {
+            return ['cliente' => $fromXml];
+        }
+
+        return [];
+    }
+
+    /** @return array{doc?:string,nombre?:string} */
+    private function extraerClienteXml(Pedido $pedido): array
+    {
+        $rel = $pedido->sunat_xml;
+        if (! $rel || ! Storage::disk('public')->exists($rel)) {
             return [];
         }
-        $j = json_decode((string) Storage::disk('public')->get($rel), true);
+        $raw = Storage::disk('public')->get($rel);
+        if (! is_string($raw) || $raw === '') {
+            return [];
+        }
+        $xml = @simplexml_load_string($raw);
+        if (! $xml) {
+            return [];
+        }
+        $xml->registerXPathNamespace('cac', 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2');
+        $xml->registerXPathNamespace('cbc', 'urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2');
+        $ids = $xml->xpath('//cac:AccountingCustomerParty//cbc:ID') ?: [];
+        $names = $xml->xpath('//cac:AccountingCustomerParty//cbc:RegistrationName')
+            ?: $xml->xpath('//cac:AccountingCustomerParty//cbc:Name')
+            ?: [];
+        $doc = isset($ids[0]) ? preg_replace('/\D+/', '', (string) $ids[0]) : '';
+        $nombre = isset($names[0]) ? trim((string) $names[0]) : '';
+        if ($doc === '00000000' || $doc === '00000000000') {
+            $doc = '';
+        }
 
-        return is_array($j) ? $j : [];
+        return array_filter(['doc' => $doc, 'nombre' => $nombre]);
     }
 
     /** Genera el PDF del pedido si falta (sin reenviar a SUNAT). */

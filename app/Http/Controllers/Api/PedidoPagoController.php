@@ -72,6 +72,8 @@ class PedidoPagoController extends Controller
     'items.*.cantidad'    => 'required|integer|min:1',
     'envio_tipo'        => 'nullable|in:AGENCIA,DOMICILIO,agencia,domicilio',
     'ubigeo'            => 'nullable|array',
+    'ubigeo.lat'        => 'nullable|numeric',
+    'ubigeo.lng'        => 'nullable|numeric',
     'telefono'          => 'nullable|string|max:20',
     'comprobante'       => 'nullable|in:BO,FA,bo,fa',
     'factura'           => 'nullable|array',
@@ -130,6 +132,7 @@ class PedidoPagoController extends Controller
                     $total += $precio * $it['cantidad'];
                 }
                 $envio = $this->aplicarEnvio($pedido, $data);
+                $this->guardarUbicacion($pedido, $data);
                 $pedido->total = $total + $envio;
                 $pedido->save();
                 app(StockPedidoService::class)->reservar($pedido, false);
@@ -230,6 +233,7 @@ class PedidoPagoController extends Controller
                 $total += $precio * $it['cantidad'];
             }
             $envio = $this->aplicarEnvio($pedido, $data);
+            $this->guardarUbicacion($pedido, $data);
             $pedido->total = $total + $envio;
             $pedido->save();
             app(StockPedidoService::class)->reservar($pedido, !empty($data['culqi_id']));
@@ -571,5 +575,31 @@ class PedidoPagoController extends Controller
         }
 
         return [$costo, $etiq];
+    }
+
+    /** @param array<string,mixed> $data */
+    private function guardarUbicacion(Pedido $pedido, array $data): void
+    {
+        $ub = is_array($data['ubigeo'] ?? null) ? $data['ubigeo'] : [];
+        $lat = isset($ub['lat']) ? (float) $ub['lat'] : 0.0;
+        $lng = isset($ub['lng']) ? (float) $ub['lng'] : 0.0;
+        if (abs($lat) < 0.01 || abs($lng) < 0.01) {
+            return;
+        }
+        if (Schema::hasColumn('pedidos', 'lat_entrega')) {
+            $pedido->lat_entrega = $lat;
+            $pedido->lng_entrega = $lng;
+        }
+        $meta = [];
+        if (! empty($pedido->comprobantes_json)) {
+            $decoded = json_decode((string) $pedido->comprobantes_json, true);
+            $meta = is_array($decoded) ? $decoded : [];
+        }
+        $meta['lat'] = $lat;
+        $meta['lng'] = $lng;
+        if (Schema::hasColumn('pedidos', 'comprobantes_json')) {
+            $pedido->comprobantes_json = json_encode($meta, JSON_UNESCAPED_UNICODE);
+        }
+        $pedido->save();
     }
 }

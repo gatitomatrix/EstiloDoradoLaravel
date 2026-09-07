@@ -54,6 +54,7 @@ class PedidoAdminController extends Controller
             $rows = $q->get()->map(fn($p) => $this->decorateRow($p));
             $this->attachItems($rows);
             $this->attachFechaEstado($rows);
+            $this->attachCoords($rows);
             return response()->json([
                 'data' => $rows,
                 'meta' => ['total' => $rows->count()],
@@ -64,6 +65,7 @@ class PedidoAdminController extends Controller
         $p->getCollection()->transform(fn($row) => $this->decorateRow($row));
         $this->attachItems($p->getCollection());
         $this->attachFechaEstado($p->getCollection());
+        $this->attachCoords($p->getCollection());
 
         return response()->json([
             'data' => $p->items(),
@@ -136,6 +138,7 @@ class PedidoAdminController extends Controller
         $p->cdr_url = $urls['cdr'] ?? null;
         $this->attachItems(collect([$p]));
         $this->attachFechaEstado(collect([$p]));
+        $this->attachCoords(collect([$p]));
 
         return $p;
     }
@@ -385,6 +388,25 @@ class PedidoAdminController extends Controller
             ->keyBy('id_pedido');
         foreach ($list as $r) {
             $r->fecha_estado = optional($last->get($r->id_pedido))->fecha_estado;
+        }
+    }
+
+    private function attachCoords($rows): void
+    {
+        foreach (collect($rows) as $r) {
+            $lat = isset($r->lat_entrega) ? (float) $r->lat_entrega : 0.0;
+            $lng = isset($r->lng_entrega) ? (float) $r->lng_entrega : 0.0;
+            if ((abs($lat) < 0.01 || abs($lng) < 0.01) && ! empty($r->comprobantes_json)) {
+                $j = json_decode((string) $r->comprobantes_json, true);
+                if (is_array($j)) {
+                    $lat = (float) ($j['lat'] ?? $lat);
+                    $lng = (float) ($j['lng'] ?? $lng);
+                }
+            }
+            $r->lat_entrega = abs($lat) > 0.01 ? $lat : null;
+            $r->lng_entrega = abs($lng) > 0.01 ? $lng : null;
+            $dir = mb_strtoupper((string) ($r->direccion_entrega ?? ''));
+            $r->es_retiro = str_contains($dir, 'RETIRO') || str_contains($dir, 'RECOJO');
         }
     }
 
