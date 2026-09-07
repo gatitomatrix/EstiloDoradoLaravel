@@ -164,7 +164,6 @@ class ProductoAdminController extends Controller
             'estado'        => ['required', Rule::in(['activo','inactivo'])],
             'imagen_url'    => ['nullable','string','max:1000'],
             'slug'          => ['nullable','string','max:255', Rule::unique('productos','slug')->ignore($p->id_producto,'id_producto')],
-            'updated_at'    => ['nullable','date'],
         ]);
 
         if (empty($data['slug'])) {
@@ -192,10 +191,7 @@ class ProductoAdminController extends Controller
         $p->estado         = $data['estado'];
         $p->imagen_url     = $data['imagen_url'] ?? null;
         $p->slug           = $data['slug'];
-
-        // si viene updated_at nulo o no viene, ponemos ahora
-        $p->updated_at     = isset($data['updated_at']) ? Carbon::parse($data['updated_at']) : now();
-
+        $p->updated_at     = now('America/Lima');
         $p->save();
 
         return response()->json($p);
