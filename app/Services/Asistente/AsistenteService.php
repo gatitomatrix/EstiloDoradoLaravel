@@ -212,7 +212,7 @@ DATOS FIJOS DE LA TIENDA (puedes usarlos siempre):
 REGLAS DE PRODUCTOS (estricto):
 1) Precios, stock y nombres SOLO del bloque "Productos encontrados".
 2) total_productos_activos = tamaño real del catálogo.
-2b) Si preguntan qué venden o cuántos productos: di que hay total_productos_activos y «Te recomendamos estos» (máximo 5 de Productos encontrados). No hagas un inventario largo; las tarjetas ya se muestran.
+2b) Si preguntan qué venden o cuántos productos: di que hay total_productos_activos y «Te recomendamos estos» (máximo 5 de Productos encontrados). NO listes precios ni stock en el texto: las tarjetas ya los muestran.
 3) Si esa lista NO está vacía, esos productos EXISTEN: dilo, cotiza y ofrece. PROHIBIDO "no tenemos" en ese caso.
 4) Lista vacía: no hay ese artículo. NO inventes Cerdita ni otro nombre. Invita a otra palabra o a Inicio.
 5) NUNCA digas que ya agregaste al carrito; invita al botón Agregar o a «quiero la [nombre]».
@@ -237,19 +237,20 @@ TXT;
             return 'add_to_cart';
         }
 
-        if (preg_match('/cumplea|cumple\b|recomend|regalo|regalar|aniversario|para\s+(una?\s+)?(mujer|chica|dama|se[nñ]orita)|novia|hermana/u', $m)) {
-            return 'product';
-        }
         if (preg_match('/registr|cuenta|usuario|crear\s*cuenta|sign\s*up|login|iniciar\s*sesi/u', $m)) {
             return 'account';
         }
-        if (preg_match('/c[oó]mo\s+compr|pasos|carrito|delivery|recojo|env[ií]o/u', $m)
-            && ! preg_match('/agrega|a[nñ]ade/u', $m)) {
+        if (preg_match('/c[oó]mo\s+(hago|puedo|hago\s+para)?.{0,28}compr|para\s+comprar|c[oó]mo\s+compr|pasos.{0,12}compr|carrito|delivery|recojo|env[ií]o/u', $m)
+            && ! preg_match('/agrega|a[nñ]ade|busco|billetera|cerdit|cajit|flores|hot\s*wheels/u', $m)) {
             return 'howto';
         }
-        if (preg_match('/yape|tarjeta|culqi|efectivo|forma[s]?\s+de\s+pago|m[eé]todo[s]?\s+de\s+pago|pagar/u', $m)
+        if (preg_match('/yape|tarjeta|culqi|efectivo|forma[s]?\s+de\s+pago|m[eé]todo[s]?\s+de\s+pago|\bpagar\b/u', $m)
             && ! preg_match('/busco|producto|cuesta|precio|stock|cerdit|cajit|flores|billetera/u', $m)) {
             return 'payment';
+        }
+
+        if (preg_match('/cumplea|cumple\b|recomend|regalo|regalar|aniversario|para\s+(una?\s+)?(mujer|chica|dama|se[nñ]orita)|novia|hermana|pap[aá]|padre|esposo/u', $m)) {
+            return 'product';
         }
         if (preg_match('/pedido|seguimiento|estado\s+de\s+mi/u', $m)) {
             return 'order';
@@ -813,7 +814,7 @@ TXT;
         }
 
         if ($intent === 'howto') {
-            return 'Para comprar: 1) Elige un producto en el catálogo 2) Agrégalo al carrito 3) Elige entrega (recojo en tienda o envío express) 4) Paga con tarjeta (Culqi prueba), Yape o efectivo. Si ya tienes un pedido pendiente, ábrelo en Mis compras.';
+            return 'Para comprar: 1) Elige el producto 2) Agregar al carrito 3) Entrega (recojo en tienda gratis o envío) 4) Paga con tarjeta, Yape o efectivo. En el chat también puedes tocar Agregar en la tarjeta. Si ya tienes un pedido, míralo en Mis compras.';
         }
 
         if ($intent === 'payment') {
@@ -843,16 +844,8 @@ TXT;
             if ($products === []) {
                 return "Tenemos {$catalogCount} productos en el catálogo. Ábrelo en Inicio para verlos todos, o dime para quién buscas y te recomiendo algunos.";
             }
-            $list = collect($products)->take(5)->map(function (Producto $p) {
-                return sprintf(
-                    '• %s — S/ %s (stock %d)',
-                    $p->nombre,
-                    number_format((float) $p->precio_final, 2, '.', ''),
-                    (int) $p->stock
-                );
-            })->implode("\n");
 
-            return "Tenemos {$catalogCount} productos. Te recomendamos estos:\n{$list}\n¿Buscas para alguien en especial o dime un nombre (cajita, flores, billetera)?";
+            return "Tenemos más de {$catalogCount} productos. Te recomendamos estos; el precio y el stock van en las tarjetas. ¿Es para alguien en especial?";
         }
 
         if ($pedido !== null) {
@@ -880,24 +873,13 @@ TXT;
                 $stock = (int) $p->stock;
 
                 return sprintf(
-                    '%s cuesta S/ %s. %s. Ábrelo en el catálogo (id %d) y agrégalo al carrito. Para pagar: carrito → entrega → Yape, tarjeta de prueba o efectivo.',
+                    'Te recomiendo %s. Precio y stock están en la tarjeta; usa Ver o Agregar.%s',
                     $p->nombre,
-                    number_format((float) $p->precio_final, 2, '.', ''),
-                    $stock > 0 ? "Hay {$stock} unidad(es) en stock" : 'Por ahora está agotado',
-                    $p->id_producto
+                    $stock < 1 ? ' Por ahora está agotado.' : ''
                 );
             }
 
-            $list = collect($products)->take(4)->map(function (Producto $p) {
-                return sprintf(
-                    '• %s — S/ %s (stock %d)',
-                    $p->nombre,
-                    number_format((float) $p->precio_final, 2, '.', ''),
-                    (int) $p->stock
-                );
-            })->implode("\n");
-
-            return "Encontré estos productos:\n{$list}\n¿Quieres el detalle de alguno?";
+            return 'Te recomendamos estas opciones. El precio y el stock van en las tarjetas; toca Ver o Agregar. ¿Quieres otra idea o un presupuesto?';
         }
 
         return 'No encontré un producto exacto con esa búsqueda. Prueba con otra palabra (ej. «cerdita», «cajita», «flores») o revisa el catálogo en Inicio. También puedo explicar cómo comprar o pagar.';
