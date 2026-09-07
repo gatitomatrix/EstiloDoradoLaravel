@@ -35,12 +35,29 @@ class AsistenteAdminController extends Controller
                 ->map(fn ($r) => $this->present($r));
         }
 
-        $items = DB::table('asistente_logs')->orderByDesc('id')->limit(80)->get()
-            ->map(fn ($r) => $this->present($r));
+        $itemsQ = DB::table('asistente_logs')->orderByDesc('id');
+        $tipo = (string) $request->query('tipo', '');
+        if ($tipo === 'whatsapp') {
+            $itemsQ->where('whatsapp', 1);
+        } elseif ($tipo === 'sin_producto') {
+            $itemsQ->where('tipo', 'sin_producto');
+        } elseif ($tipo === 'catalogo') {
+            $itemsQ->where('tipo', 'catalogo');
+        }
+        $items = $itemsQ->limit(80)->get()->map(fn ($r) => $this->present($r));
+
+        $conCuenta = 0;
+        $invitados = 0;
+        if (Schema::hasColumn('asistente_logs', 'id_cliente')) {
+            $conCuenta = (clone $q)->whereNotNull('id_cliente')->count();
+            $invitados = (clone $q)->whereNull('id_cliente')->count();
+        }
 
         return response()->json([
             'stats' => [
                 'total' => (clone $q)->count(),
+                'con_cuenta' => $conCuenta,
+                'invitados' => $invitados,
                 'sin_producto' => (clone $q)->where('tipo', 'sin_producto')->count(),
                 'whatsapp' => (clone $q)->where('whatsapp', 1)->count(),
             ],
@@ -98,6 +115,8 @@ class AsistenteAdminController extends Controller
     public function interes()
     {
         $consultas = [];
+        $consultasCuenta = [];
+        $consultasInv = [];
         if (Schema::hasTable('asistente_logs') && Schema::hasColumn('asistente_logs', 'productos_json')) {
             $q = DB::table('asistente_logs')->whereNotNull('productos_json');
             if (Schema::hasColumn('asistente_logs', 'tipo')) {
@@ -105,13 +124,18 @@ class AsistenteAdminController extends Controller
                     $w->whereNull('tipo')->orWhereNotIn('tipo', ['whatsapp', 'queja_espera']);
                 });
             }
-            $rows = $q->orderByDesc('id')->limit(800)->get(['productos_json']);
+            $rows = $q->orderByDesc('id')->limit(800)->get(
+                Schema::hasColumn('asistente_logs', 'id_cliente')
+                    ? ['productos_json', 'id_cliente']
+                    : ['productos_json']
+            );
             foreach ($rows as $r) {
                 $j = json_decode((string) $r->productos_json, true);
                 if (! is_array($j)) {
                     continue;
                 }
                 $seen = [];
+                $logueado = Schema::hasColumn('asistente_logs', 'id_cliente') && ! empty($r->id_cliente);
                 foreach ($j as $p) {
                     if (! is_array($p)) {
                         continue;
@@ -122,6 +146,11 @@ class AsistenteAdminController extends Controller
                     }
                     $seen[$id] = true;
                     $consultas[$id] = ($consultas[$id] ?? 0) + 1;
+                    if ($logueado) {
+                        $consultasCuenta[$id] = ($consultasCuenta[$id] ?? 0) + 1;
+                    } else {
+                        $consultasInv[$id] = ($consultasInv[$id] ?? 0) + 1;
+                    }
                 }
             }
         }
@@ -166,12 +195,18 @@ class AsistenteAdminController extends Controller
                 'precio' => $p ? (float) $p->precio_venta : null,
                 'stock' => $p ? (int) $p->stock : null,
                 'consultas' => (int) ($consultas[$id] ?? 0),
+                'consultas_cuenta' => (int) ($consultasCuenta[$id] ?? 0),
+                'consultas_invitado' => (int) ($consultasInv[$id] ?? 0),
                 'likes' => (int) ($likes[$id] ?? 0),
                 'dislikes' => (int) ($dislikes[$id] ?? 0),
                 'carritos' => (int) ($adds[$id] ?? 0),
+                'stock_bajo' => $p ? (int) $p->stock <= 10 : false,
             ];
         }
         usort($items, function ($a, $b) {
+            if ($b['consultas_cuenta'] !== $a['consultas_cuenta']) {
+                return $b['consultas_cuenta'] <=> $a['consultas_cuenta'];
+            }
             if ($b['consultas'] !== $a['consultas']) {
                 return $b['consultas'] <=> $a['consultas'];
             }
@@ -182,12 +217,42 @@ class AsistenteAdminController extends Controller
         return response()->json([
             'stats' => [
                 'productos' => count($items),
-                'consultas' => array_sum($consultas),
+                'consultas' => array_sum($consultasCuenta),
+                'consultas_invitado' => array_sum($consultasInv),
+                'consultas_total' => array_sum($consultas),
                 'likes' => array_sum($likes),
                 'carritos' => array_sum($adds),
+                'stock_bajo' => count(array_filter($items, fn ($i) => ! empty($i['stock_bajo']) && ($i['consultas'] ?? 0) > 0)),
             ],
             'items' => $items,
         ]);
+    }
+
+    public function interesExport(string $ext)
+    {
+        $data = $this->interes()->getData(true);
+        $headers = ['Producto', 'Stock', 'Consultas (cuenta)', 'Consultas (invitado)', 'Me gusta', 'No me gusta', 'Al carrito', 'Reponer'];
+        $rows = [];
+        foreach ($data['items'] ?? [] as $p) {
+            $rows[] = [
+                $p['nombre'] ?? '',
+                $p['stock'] ?? 0,
+                $p['consultas_cuenta'] ?? 0,
+                $p['consultas_invitado'] ?? 0,
+                $p['likes'] ?? 0,
+                $p['dislikes'] ?? 0,
+                $p['carritos'] ?? 0,
+                ! empty($p['stock_bajo']) ? 'Sí' : '',
+            ];
+        }
+
+        return app(\App\Services\ReportExportService::class)->download(
+            'interes_dori',
+            'Interés Dori — Estilo Dorado',
+            $headers,
+            $rows,
+            $ext
+        );
     }
 
     public function fichaCliente(int $id)

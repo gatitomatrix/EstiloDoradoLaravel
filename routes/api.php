@@ -207,6 +207,7 @@ Route::prefix('admin')->middleware(['auth:sanctum','abilities:admin'])->group(fu
         Route::get('auditoria',                  [AuditoriaAdminController::class, 'index']);
         Route::get('asistente-logs',             [AsistenteAdminController::class, 'index']);
         Route::get('asistente-interes',          [AsistenteAdminController::class, 'interes']);
+        Route::get('asistente-interes.{ext}',    [AsistenteAdminController::class, 'interesExport'])->where('ext', 'xlsx|csv|pdf');
         Route::get('asistente-cliente/{id}',     [AsistenteAdminController::class, 'fichaCliente']);
     });
 
