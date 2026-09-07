@@ -121,8 +121,8 @@ class AsistenteService
         $driver = strtolower((string) config('llm.driver', 'gemini'));
         $reply = null;
         $used = 'rules';
-        // Con Gemini el FAQ también va al LLM (más conversacional). Ollama sigue saltando chips para no tardar.
-        $skipLlm = in_array($intent, ['help', 'howto', 'payment', 'account', 'catalog', 'catalog_count', 'offtopic'], true);
+        // Gemini en producto, catálogo y cómo comprar. No gastar tokens en hola / fuera de tema.
+        $skipLlm = in_array($intent, ['help', 'offtopic'], true);
 
         if (! $skipLlm && in_array($driver, ['ollama', 'gemini'], true)) {
             $system = $this->systemPrompt();

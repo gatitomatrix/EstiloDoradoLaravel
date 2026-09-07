@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Producto;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Carbon\Carbon;
 
@@ -19,6 +20,13 @@ class ProductoAdminController extends Controller
         $order = $request->get('order','desc');
 
         $q = Producto::query()
+            ->select([
+                'id_producto', 'nombre',
+                DB::raw('LEFT(descripcion, 180) as descripcion'),
+                'etiquetas', 'precio_compra', 'precio_venta', 'descuento_pct', 'oferta_hasta',
+                'stock', 'id_categoria', 'id_proveedor', 'imagen_url', 'estado', 'slug',
+                'created_at', 'updated_at',
+            ])
             ->with(['categoria:id_categoria,nombre']);
 
         // Acepta q|search
