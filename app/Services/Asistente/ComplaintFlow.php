@@ -113,7 +113,7 @@ class ComplaintFlow
         }
 
         $txt = ($prefix ? $prefix.' ' : '')
-            .'Estos son tus últimos pedidos pagados. Ver = ficha (el chat no se cierra). «Este es» = queja de ese pedido. O escribe «otro».';
+            .'Estos son tus últimos pedidos pagados. «Ver» abre Mis compras (con foto). «Este es» = queja de ese pedido. O escribe «otro».';
 
         return $this->pack($txt, [
             'awaiting' => 'complaint_order',
@@ -163,11 +163,18 @@ class ComplaintFlow
     public function confirmProfilePhone(string $message, Cliente $cliente, array $ctx): array
     {
         $m = mb_strtolower(trim($message));
-        if (preg_match('/^(s[ií]|ok|dale|ese|ese mismo|correcto|confirmo)\b/u', $m)) {
+        $niega = (bool) preg_match('/\bno\b|whatsapp|otro\s+n[uú]mero/u', $m);
+        $afirma = (bool) preg_match(
+            '/\b(s[ií]|ok+|okay|dale|claro|vale|listo|confirmo|correcto|porfa|porfavor|por\s*favor|ese(\s+mismo)?|de\s+acuerdo|por\s+supuesto)\b/u',
+            $m
+        );
+        if ($afirma && ! $niega) {
             $tel = preg_replace('/\D+/', '', (string) ($ctx['phone'] ?? $cliente->telefono ?? '')) ?? '';
             if (strlen($tel) >= 9) {
                 $ctx['phone'] = $tel;
             }
+            $mostrar = $this->formatPhone($tel);
+            $ctx['_confirm_ok'] = 'Listo, te contactamos al '.$mostrar.'. ';
 
             return $this->finish($ctx['tipo'] ?? 'otro', $message, $cliente, $ctx);
         }
@@ -201,8 +208,11 @@ class ComplaintFlow
         }
         $summary = $this->whatsapp->quejaLabel($tipo).' · '.$summary;
 
+        $prefix = (string) ($ctx['_confirm_ok'] ?? '');
+        unset($ctx['_confirm_ok']);
+
         return $this->pack(
-            $this->closingReply($tipo, $pid, $snap['items'], $ctx['phone'] ?? null).$extra,
+            $prefix.$this->closingReply($tipo, $pid, $snap['items'], $ctx['phone'] ?? null).$extra,
             [
                 'awaiting' => null,
                 'log_tipo' => 'whatsapp',

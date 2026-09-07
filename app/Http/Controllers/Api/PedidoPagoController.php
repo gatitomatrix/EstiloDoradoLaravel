@@ -49,6 +49,7 @@ class PedidoPagoController extends Controller
             'direccion_entrega' => $p->direccion_entrega,
             'telefono_contacto' => Celular::desdePedido($p),
             'producto_label'    => $label,
+            'imagen_url'        => $first?->producto?->imagen_url,
             'comprobante_tipo'  => $emitido ? $tipo : null,
             'comprobante_serie' => $emitido ? $serie : null,
             'comprobante_numero'=> $emitido ? $p->comprobante_numero : null,
