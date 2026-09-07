@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Cliente;
+use App\Models\Pedido;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 
@@ -31,8 +32,52 @@ return $q->paginate($per);
     public function show($id)
     {
         $c = Cliente::find($id);
-        if (!$c) return response()->json(['message' => 'No encontrado'], 404);
-        return $c;
+        if (! $c) {
+            return response()->json(['message' => 'No encontrado'], 404);
+        }
+
+        $pedidos = Pedido::query()
+            ->with(['detalles.producto'])
+            ->where('id_cliente', $id)
+            ->orderByDesc('id_pedido')
+            ->limit(50)
+            ->get();
+
+        $nPagados = Pedido::query()
+            ->where('id_cliente', $id)
+            ->whereNotIn('estado', ['pendiente', 'cancelado'])
+            ->count();
+        $gasto = (float) Pedido::query()
+            ->where('id_cliente', $id)
+            ->whereNotIn('estado', ['pendiente', 'cancelado'])
+            ->sum('total');
+
+        $list = [];
+        foreach ($pedidos as $p) {
+            $items = [];
+            foreach ($p->detalles as $d) {
+                $prod = $d->producto;
+                $items[] = [
+                    'nombre' => $prod?->nombre ?? 'Ítem',
+                    'cantidad' => (int) ($d->cantidad ?? 1),
+                    'imagen_url' => $prod?->imagen_url,
+                ];
+            }
+            $list[] = [
+                'id_pedido' => (int) $p->id_pedido,
+                'fecha' => optional($p->fecha_pedido)?->timezone('America/Lima')->format('d/m/Y H:i') ?: '',
+                'total' => number_format((float) $p->total, 2, '.', ''),
+                'estado' => $p->estado,
+                'items' => $items,
+            ];
+        }
+
+        $arr = $c->toArray();
+        $arr['n_pedidos'] = $nPagados;
+        $arr['total_gastado'] = number_format($gasto, 2, '.', '');
+        $arr['pedidos'] = $list;
+
+        return response()->json($arr);
     }
 
     public function store(Request $request)

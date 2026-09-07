@@ -274,7 +274,7 @@ class AsistenteAdminController extends Controller
             ->where('id_cliente', $id)
             ->whereNotIn('estado', ['pendiente', 'cancelado'])
             ->orderByDesc('id_pedido')
-            ->limit(5)
+            ->limit(20)
             ->get();
 
         $n = Pedido::query()
