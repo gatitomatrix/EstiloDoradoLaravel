@@ -34,6 +34,14 @@ class Pedido extends Model
         'fecha_pedido' => 'datetime',
     ];
 
+    /** JSON y API siempre en hora de Lima (no UTC). */
+    protected function serializeDate(\DateTimeInterface $date): string
+    {
+        return \Carbon\Carbon::instance($date)
+            ->timezone('America/Lima')
+            ->format('Y-m-d H:i:s');
+    }
+
     // ==================== RELACIONES ====================
 
     public function detalles()
