@@ -37,6 +37,13 @@ class Producto extends Model
         // 'estado' es enum string, lo dejamos como string
     ];
 
+    protected function serializeDate(\DateTimeInterface $date): string
+    {
+        return \Carbon\Carbon::instance($date)
+            ->timezone('America/Lima')
+            ->format('Y-m-d H:i:s');
+    }
+
     protected $appends = ['precio_final', 'descuento_aplicado', 'en_oferta'];
 
     public function getPrecioFinalAttribute(): float
