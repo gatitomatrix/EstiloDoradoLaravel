@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Empleado;
 use App\Models\Inventario;
 use App\Models\Producto;
 use Illuminate\Support\Facades\Schema;
@@ -29,8 +30,19 @@ class InventarioKardex
             'observacion' => $observacion,
             'referencia_tipo' => $refTipo,
             'referencia_id' => $refId,
-            'id_empleado' => $empId,
+            'id_empleado' => $empId ?? $this->empleadoActual(),
         ]);
+    }
+
+    /** Quién está actuando en el panel. Null si el movimiento lo hace un cliente o un job. */
+    public function empleadoActual(): ?int
+    {
+        $u = auth()->user();
+        if ($u instanceof Empleado && ! empty($u->id_empleado)) {
+            return (int) $u->id_empleado;
+        }
+
+        return null;
     }
 
     /** @return \Illuminate\Support\Collection<int,Inventario> */

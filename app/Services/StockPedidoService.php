@@ -114,6 +114,10 @@ class StockPedidoService
         foreach ($reservas as $mov) {
             $mov->tipo_movimiento = 'salida';
             $mov->observacion = trim((string) $mov->observacion.' · Entregado');
+            $emp = $this->kardex->empleadoActual();
+            if ($emp) {
+                $mov->id_empleado = $emp;
+            }
             $mov->save();
         }
     }
@@ -148,6 +152,10 @@ class StockPedidoService
             foreach ($reservas as $mov) {
                 $mov->tipo_movimiento = 'liberacion';
                 $mov->observacion = trim((string) $mov->observacion.' · Pedido cancelado, stock liberado');
+                $emp = $this->kardex->empleadoActual();
+                if ($emp) {
+                    $mov->id_empleado = $emp;
+                }
                 $mov->save();
             }
         } else {
