@@ -22,6 +22,7 @@ class Pedido extends Model
         'direccion_entrega',
         'telefono_contacto',
         'observacion',           // ← Agregado
+        'nota_admin',
         'comprobante_tipo',
         'comprobante_serie',
         'comprobante_numero',

@@ -226,6 +226,7 @@ class PedidoAdminController extends Controller
         $data = $request->validate([
             'estado'       => 'required|in:pendiente,pagado,enviado,entregado,cancelado',
             'forma_pago'   => 'nullable|in:tarjeta,yape,efectivo',
+            'nota_admin'   => 'nullable|string|max:500',
         ]);
 
         $p = Pedido::with('detalles')->find($id);
@@ -240,6 +241,10 @@ class PedidoAdminController extends Controller
                 if (array_key_exists('forma_pago', $data)) {
                     $p->forma_pago = $data['forma_pago'];
                 }
+                $nota = trim((string) ($data['nota_admin'] ?? ''));
+                if (\Illuminate\Support\Facades\Schema::hasColumn('pedidos', 'nota_admin')) {
+                    $p->nota_admin = $nota !== '' ? $nota : null;
+                }
                 $p->save();
 
                 if ($antes !== $despues) {
@@ -249,7 +254,7 @@ class PedidoAdminController extends Controller
                         'estado_anterior' => $antes,
                         'estado_nuevo'    => $despues,
                         'fecha'           => now(),
-                        'comentario'      => 'Cambio desde panel de pedidos',
+                        'comentario'      => $nota !== '' ? $nota : 'Cambio desde panel de pedidos',
                     ]);
                 }
             });
