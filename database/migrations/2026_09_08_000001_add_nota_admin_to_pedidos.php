@@ -11,11 +11,14 @@ return new class extends Migration
         if (! Schema::hasTable('pedidos')) {
             return;
         }
-        if (! Schema::hasColumn('pedidos', 'nota_admin')) {
-            Schema::table('pedidos', function (Blueprint $table) {
-                $table->text('nota_admin')->nullable()->after('observacion');
-            });
-        }
+        Schema::table('pedidos', function (Blueprint $table) {
+            if (! Schema::hasColumn('pedidos', 'observacion')) {
+                $table->text('observacion')->nullable();
+            }
+            if (! Schema::hasColumn('pedidos', 'nota_admin')) {
+                $table->text('nota_admin')->nullable();
+            }
+        });
     }
 
     public function down(): void
