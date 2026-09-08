@@ -199,10 +199,11 @@ class AsistenteService
 Eres Dori, asistente de ventas de "Estilo Dorado" (regalos, detalles personalizados, flores, cajitas, peluches, billeteras y accesorios). Tienda en Cerro de Pasco, Perú. Recojo: Prolongación Yauli Nro. S/N Pasco - Pasco – Chaupimarca. Hablas en español peruano, cercano y profesional, como un chat de tienda actual (no robot, no discurso largo).
 
 ESTILO:
-- 2 a 5 frases. Puedes hacer UNA pregunta corta al final para seguir la conversación (¿para quién es?, ¿presupuesto?, ¿recojo o envío?).
+- 2 a 4 frases. Puedes hacer UNA pregunta corta al final para seguir la conversación (¿para quién es?, ¿presupuesto?, ¿recojo o envío?).
 - Tutea. NUNCA te presentes de nuevo ni empieces con «Hola, soy…»: el cliente ya vio tu saludo en la ventana. Responde DIRECTO a lo que pidió.
 - Si mezcla saludo y pedido («hola, es el cumpleaños de mi hermano»), ignora el hola y recomienda productos.
-- Si el tema es de la tienda (regalo, ocasión, envío, pago, stock, pedido, personalizado, horario, ubicación), responde con gusto. Si es comida u otro rubro, redirige con amabilidad al catálogo.
+- Si el tema es de la tienda (regalo, ocasión, envío, pago, stock, pedido, personalizado, horario, ubicación), responde con gusto. Si es política, presidente, farándula, comida, clima, tareas u otro rubro: NO contestes el dato. Redirige amable a regalos/catálogo en 2 frases.
+- Si no sabes un dato de la tienda que no esté en este contexto: dilo en una frase y invita a contactar por WhatsApp o el correo de atención. NO inventes.
 
 DATOS FIJOS DE LA TIENDA (puedes usarlos siempre):
 - Catálogo público: no hace falta registrarse para ver productos.
@@ -288,6 +289,9 @@ TXT;
             && ! preg_match('/busco|cerdit|cajit|regalo|flores/u', $m)) {
             return 'offtopic';
         }
+        if ($this->isOffTopic($m)) {
+            return 'offtopic';
+        }
         if (preg_match('/busco|precio|cuesta|stock|tienen|hay\s|quiero|cerdit|cajit|flores|billetera|hot\s*wheels|personaliz|recomend|regalo|cumple/u', $m)) {
             return 'product';
         }
@@ -296,6 +300,38 @@ TXT;
         }
 
         return 'product';
+    }
+
+    private function isOffTopic(string $m): bool
+    {
+        if (preg_match('/regalo|producto|pedido|cajit|flores|billetera|compr|cat[aá]logo|yape|recojo|env[ií]o/u', $m)) {
+            return false;
+        }
+
+        return (bool) preg_match(
+            '/presidente|ministr[oa]|congreso|eleccion|trump|biden|milei|f[uú]tbol|mundial\s+de|clima|temperatura|receta|tarea\b|wikipedia|chiste|hor[oó]scopo|guerra|capital\s+de|qui[eé]n\s+es\s+el|qu[eé]\s+hora\s+es|traduce|far[aá]ndula|celebridad|netflix|chatgpt/u',
+            $m
+        );
+    }
+
+    private function contactoCorto(): string
+    {
+        $num = $this->whatsapp->displayNumber();
+        $email = trim((string) config('llm.contacto.email', ''));
+        if (str_contains(mb_strtolower($email), 'no-reply') || str_contains(mb_strtolower($email), 'noreply')) {
+            $email = '';
+        }
+        if ($num && $email !== '') {
+            return 'Si no te di con lo que buscas, escríbenos al WhatsApp '.$num.' o al correo '.$email.'.';
+        }
+        if ($num) {
+            return 'Si no te di con lo que buscas, escríbenos al WhatsApp '.$num.'.';
+        }
+        if ($email !== '') {
+            return 'Si no te di con lo que buscas, escríbenos a '.$email.'.';
+        }
+
+        return 'Si no te di con lo que buscas, pide «hablar con la tienda» (inicia sesión) y te pasamos el WhatsApp.';
     }
 
     private function handleHumano(string $message, ?Cliente $cliente): array
@@ -986,7 +1022,7 @@ TXT;
         }
 
         if ($intent === 'offtopic') {
-            return 'No vendemos comida: Estilo Dorado es una tienda de regalos y detalles personalizados. ¿Te muestro algo del catálogo (flores, cajitas, detalles, etc.)?';
+            return 'Eso queda fuera de lo que puedo ayudarte: soy Dori, de la tienda Estilo Dorado (regalos y detalles). ¿Buscas un producto o un regalo? '.$this->contactoCorto();
         }
 
         if (in_array($intent, ['product', 'mixed'], true) && $products === []) {
@@ -997,7 +1033,7 @@ TXT;
             if (preg_match('/gracias|bonit|precios|lind[oa]|hermos|encant|divin/u', mb_strtolower($message))) {
                 return '¡Con gusto! Si se te ocurre otro regalo o producto, aquí estoy.';
             }
-            return 'No encontré un producto con ese nombre en el catálogo. Prueba con otra palabra (ej. «cerdita», «cajita», «flores») o revisa Inicio.';
+            return 'No encontré eso en el catálogo. Prueba otra palabra (cajita, flores, billetera) o mira Inicio. '.$this->contactoCorto();
         }
 
         if ($intent === 'catalog_count') {

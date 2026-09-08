@@ -48,6 +48,7 @@ if [ "${IMPORT_SQL:-0}" = "1" ] && [ -f /var/www/database/sql/estilo_dorado.sql 
       --port="${DB_PORT:-3306}" \
       --user="${DB_USERNAME}" \
       --password="${DB_PASSWORD}" \
+      --skip-ssl \
       "${DB_DATABASE}" \
     && echo "Import OK. Quita IMPORT_SQL=1 en Render para no repetirlo."
 fi

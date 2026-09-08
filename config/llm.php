@@ -30,4 +30,9 @@ return [
     'whatsapp' => [
         'number' => env('WHATSAPP_NUMBER', ''),
     ],
+
+    /** Correo de atención (opcional). Si está vacío, Dori solo ofrece WhatsApp. */
+    'contacto' => [
+        'email' => env('CONTACTO_EMAIL', ''),
+    ],
 ];
