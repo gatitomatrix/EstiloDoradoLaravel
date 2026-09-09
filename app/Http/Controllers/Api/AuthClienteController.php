@@ -25,13 +25,14 @@ class AuthClienteController extends Controller
      */
     public function register(Request $request)
     {
-        // Acepta password (móvil/API estándar) o contrasena (Angular)
         if (!$request->filled('password') && $request->filled('contrasena')) {
+            $request->merge(['password' => $request->input('contrasena')]);
+        }
+        if (!$request->filled('password_confirmation')) {
             $request->merge([
-                'password' => $request->input('contrasena'),
-                'password_confirmation' => $request->input('password_confirmation')
-                    ?? $request->input('contrasena_confirmation')
-                    ?? $request->input('contrasena'),
+                'password_confirmation' => $request->input('password')
+                    ?? $request->input('contrasena')
+                    ?? $request->input('contrasena_confirmation'),
             ]);
         }
 
@@ -40,31 +41,38 @@ class AuthClienteController extends Controller
             'apellido'  => 'nullable|string|max:100',
             'telefono'  => 'nullable|string|max:20',
             'email'     => 'required|email|max:100|unique:clientes,email',
-            'direccion' => 'nullable|string',
-            'password'  => 'required|string|min:6|confirmed',
+            'direccion' => 'nullable|string|max:255',
+            'password'  => 'required|string|min:6',
         ], [
             'email.unique' => 'Este correo ya está registrado. Inicia sesión o recupera tu contraseña.',
-            'password.confirmed' => 'La confirmación de contraseña no coincide.',
             'password.min' => 'La contraseña debe tener al menos 6 caracteres.',
         ]);
 
+        $dir = trim((string) ($data['direccion'] ?? ''));
         $payload = [
             'nombre'    => $data['nombre'],
             'apellido'  => $data['apellido'] ?? null,
             'telefono'  => $data['telefono'] ?? null,
             'email'     => $data['email'],
-            'direccion' => $data['direccion'] ?? null,
+            'direccion' => $dir === '' ? null : $dir,
             'contrasena'=> Hash::make($data['password']),
         ];
         if (Schema::hasColumn('clientes', 'auth_provider')) {
             $payload['auth_provider'] = Cliente::PROVIDER_LOCAL;
         }
-        $cliente = Cliente::create($payload);
 
-        // Ability "client" para middleware auth:sanctum,abilities:client
-        $token = $cliente->createToken('token_cliente', ['client'])->plainTextToken;
+        try {
+            $cliente = Cliente::create($payload);
+            $token = $cliente->createToken('token_cliente', ['client'])->plainTextToken;
+        } catch (\Throwable $e) {
+            Log::error('[register] '.$e->getMessage());
 
-        // Correo de bienvenida: no debe tumbar el registro si falla SMTP
+            return response()->json([
+                'success' => false,
+                'message' => 'No se pudo crear la cuenta. Intenta de nuevo o usa otro correo.',
+            ], 500);
+        }
+
         try {
             Mail::to($cliente->email)->send(new WelcomeMail($cliente));
         } catch (\Throwable $e) {
