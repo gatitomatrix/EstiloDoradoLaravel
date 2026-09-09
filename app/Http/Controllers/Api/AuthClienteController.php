@@ -14,9 +14,12 @@ use App\Mail\WelcomeMail;
 use App\Mail\PasswordChangedMail;
 use App\Mail\ResetPasswordMail;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class AuthClienteController extends Controller
 {
+    private const MSG_GOOGLE = 'Esta cuenta entra con Google. Usa el botón «Continuar con Google». La contraseña se cambia en tu cuenta de Google.';
+
     /**
      * Registro de nuevo cliente
      */
@@ -45,14 +48,18 @@ class AuthClienteController extends Controller
             'password.min' => 'La contraseña debe tener al menos 6 caracteres.',
         ]);
 
-        $cliente = Cliente::create([
+        $payload = [
             'nombre'    => $data['nombre'],
             'apellido'  => $data['apellido'] ?? null,
             'telefono'  => $data['telefono'] ?? null,
             'email'     => $data['email'],
             'direccion' => $data['direccion'] ?? null,
             'contrasena'=> Hash::make($data['password']),
-        ]);
+        ];
+        if (Schema::hasColumn('clientes', 'auth_provider')) {
+            $payload['auth_provider'] = Cliente::PROVIDER_LOCAL;
+        }
+        $cliente = Cliente::create($payload);
 
         // Ability "client" para middleware auth:sanctum,abilities:client
         $token = $cliente->createToken('token_cliente', ['client'])->plainTextToken;
@@ -67,14 +74,7 @@ class AuthClienteController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Usuario registrado exitosamente',
-            'cliente' => [
-                'id_cliente' => $cliente->id_cliente,
-                'nombre'     => $cliente->nombre,
-                'apellido'   => $cliente->apellido,
-                'telefono'   => $cliente->telefono,
-                'email'      => $cliente->email,
-                'direccion'  => $cliente->direccion,
-            ],
+            'cliente' => $cliente->toAuthArray(),
             'token' => $token,
         ], 201);
     }
@@ -105,6 +105,14 @@ class AuthClienteController extends Controller
         $stored = $cliente->getAuthPassword();
         $looksBcrypt = is_string($stored) && Str::startsWith($stored, '$2y$');
 
+        if ($cliente->esGoogle()) {
+            return response()->json([
+                'success' => false,
+                'message' => self::MSG_GOOGLE,
+                'auth_provider' => Cliente::PROVIDER_GOOGLE,
+            ], 401);
+        }
+
         if ($looksBcrypt) {
             if (!Hash::check($credentials['password'], $stored)) {
                 return response()->json([
@@ -128,14 +136,7 @@ class AuthClienteController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Login exitoso',
-            'cliente' => [
-                'id_cliente' => $cliente->id_cliente,
-                'nombre'     => $cliente->nombre,
-                'apellido'   => $cliente->apellido,
-                'telefono'   => $cliente->telefono,
-                'email'      => $cliente->email,
-                'direccion'  => $cliente->direccion,
-            ],
+            'cliente' => $cliente->toAuthArray(),
             'token' => $token,
         ]);
     }
@@ -147,14 +148,7 @@ class AuthClienteController extends Controller
             return response()->json(['message' => 'Token no válido para CLIENTE'], 401);
         }
 
-        return response()->json([
-            'id_cliente' => $user->id_cliente,
-            'nombre'     => $user->nombre,
-            'apellido'   => $user->apellido,
-            'telefono'   => $user->telefono,
-            'direccion'  => $user->direccion,
-            'email'      => $user->email,
-        ]);
+        return response()->json($user->toAuthArray());
     }
 
     public function update(Request $request)
@@ -173,14 +167,7 @@ class AuthClienteController extends Controller
 
         $c->fill($data)->save();
 
-        return response()->json([
-            'id_cliente' => $c->id_cliente,
-            'nombre'     => $c->nombre,
-            'apellido'   => $c->apellido,
-            'telefono'   => $c->telefono,
-            'direccion'  => $c->direccion,
-            'email'      => $c->email,
-        ], 200);
+        return response()->json($c->toAuthArray(), 200);
     }
 
     public function logout(Request $request)
@@ -210,6 +197,13 @@ class AuthClienteController extends Controller
         $email = strtolower(trim($data['email']));
 
         $cliente = Cliente::where('email', $email)->first();
+        if ($cliente && $cliente->esGoogle()) {
+            return response()->json([
+                'success' => true,
+                'google' => true,
+                'message' => self::MSG_GOOGLE,
+            ]);
+        }
         if ($cliente) {
             $code = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
             DB::table('password_reset_tokens')->updateOrInsert(
@@ -264,6 +258,9 @@ class AuthClienteController extends Controller
         if (! $cliente) {
             return response()->json(['message' => 'Cliente no encontrado'], 404);
         }
+        if ($cliente->esGoogle()) {
+            return response()->json(['message' => self::MSG_GOOGLE], 422);
+        }
 
         $cliente->contrasena = Hash::make($data['password']);
         $cliente->save();
@@ -304,6 +301,9 @@ class AuthClienteController extends Controller
         $c = $request->user();
         if (!$c || !($c instanceof Cliente)) {
             return response()->json(['message' => 'Token no válido para CLIENTE'], 401);
+        }
+        if ($c->esGoogle()) {
+            return response()->json(['message' => self::MSG_GOOGLE], 422);
         }
 
         $data = $request->validate([
@@ -384,14 +384,18 @@ class AuthClienteController extends Controller
         $cliente = Cliente::where('email', $email)->first();
         $created = false;
         if (!$cliente) {
-            $cliente = Cliente::create([
+            $nuevo = [
                 'nombre'     => $nombre,
                 'apellido'   => $apellido,
                 'email'      => $email,
                 'telefono'   => null,
                 'direccion'  => null,
                 'contrasena' => Hash::make(Str::random(32)),
-            ]);
+            ];
+            if (Schema::hasColumn('clientes', 'auth_provider')) {
+                $nuevo['auth_provider'] = Cliente::PROVIDER_GOOGLE;
+            }
+            $cliente = Cliente::create($nuevo);
             $created = true;
         }
 
@@ -409,14 +413,7 @@ class AuthClienteController extends Controller
             'success' => true,
             'created' => $created,
             'message' => $created ? 'Cuenta creada con Google' : 'Login con Google exitoso',
-            'cliente' => [
-                'id_cliente' => $cliente->id_cliente,
-                'nombre'     => $cliente->nombre,
-                'apellido'   => $cliente->apellido,
-                'telefono'   => $cliente->telefono,
-                'email'      => $cliente->email,
-                'direccion'  => $cliente->direccion,
-            ],
+            'cliente' => $cliente->toAuthArray(),
             'token' => $token,
         ]);
     }
