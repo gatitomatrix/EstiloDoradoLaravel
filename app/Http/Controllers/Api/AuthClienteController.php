@@ -397,6 +397,10 @@ class AuthClienteController extends Controller
             }
             $cliente = Cliente::create($nuevo);
             $created = true;
+        } elseif (Schema::hasColumn('clientes', 'auth_provider')
+            && $cliente->auth_provider !== Cliente::PROVIDER_GOOGLE) {
+            $cliente->auth_provider = Cliente::PROVIDER_GOOGLE;
+            $cliente->save();
         }
 
         $token = $cliente->createToken('token_cliente', ['client'])->plainTextToken;
