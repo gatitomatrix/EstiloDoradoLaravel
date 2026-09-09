@@ -115,7 +115,7 @@ class AsistenteService
             ];
         }
 
-        $products = $this->findProducts($message, $intent);
+        $products = $this->findProducts($message, $intent, $offeredIds);
         $pedido = $this->findPedido($message, $cliente);
         $catalogCount = (int) Producto::query()
             ->where(function ($b) {
@@ -228,6 +228,7 @@ REGLAS DE PRODUCTOS (estricto):
 7) EDAD Y GÉNERO del DESTINATARIO (no del comprador). Si el contexto trae destinatario_regalo, prioriza ESA lista: un niño ~10 no es lo mismo que alguien de 50-60. No ofrezcas billetera de caballero a un niño ni peluche infantil como primera opción a un adulto mayor.
 8) Si destinatario_regalo dice edad o género "no indicada", pregunta UNA vez: «¿Es para hombre o mujer, y más o menos qué edad: 10, 20, 30, 40, 50 o 60?»
 9) No des datos de otros clientes. Pedidos solo con el contexto; si no hay, pide iniciar sesión.
+10) PRESUPUESTO: si el cliente dice «menor a 20», «hasta 15 soles», «barato», etc., recomienda SOLO productos de la lista (ya vienen filtrados). Si la lista no está vacía, NO digas que no hay. Si está vacía, di que no hay en ese rango y pregunta si sube un poco el tope.
 
 Si no estás seguro, pregunta. No rellenes con productos inventados.
 TXT;
@@ -292,7 +293,7 @@ TXT;
         if ($this->isOffTopic($m)) {
             return 'offtopic';
         }
-        if (preg_match('/busco|precio|cuesta|stock|tienen|hay\s|quiero|cerdit|cajit|flores|billetera|hot\s*wheels|personaliz|recomend|regalo|cumple/u', $m)) {
+        if (preg_match('/busco|precio|cuesta|stock|tienen|hay\s|quiero|cerdit|cajit|flores|billetera|hot\s*wheels|personaliz|recomend|regalo|cumple|presupuesto|barato|econ[oó]mic|soles/u', $m)) {
             return 'product';
         }
         if (preg_match('/busco|cerdit|product/u', $m) && preg_match('/compr|pago|yape/u', $m)) {
@@ -657,21 +658,40 @@ TXT;
         return array_map(fn ($x) => $x['p'], $tied);
     }
 
-    private function findProducts(string $message, string $intent): array
+    private function findProducts(string $message, string $intent, array $offeredIds = []): array
     {
         if (in_array($intent, ['help', 'howto', 'payment', 'account', 'order', 'offtopic', 'catalog_count'], true)) {
             return [];
         }
 
+        $budget = $this->parseBudget($message);
         $base = Producto::query()->where(function ($b) {
             $b->whereNull('estado')->orWhere('estado', 'activo');
         });
 
-        if ($intent === 'catalog') {
+        if ($budget && $offeredIds !== []) {
+            $kept = Producto::query()
+                ->whereIn('id_producto', $offeredIds)
+                ->where(function ($b) {
+                    $b->whereNull('estado')->orWhere('estado', 'activo');
+                })
+                ->get()
+                ->filter(fn (Producto $p) => $this->inBudget($p, $budget))
+                ->values();
+            if ($kept->isNotEmpty()) {
+                return $kept->all();
+            }
+        }
+
+        if ($intent === 'catalog' && ! $budget) {
             return (clone $base)->orderByDesc('stock')->limit(6)->get()->all();
         }
 
         $tokens = $this->extractSearchTokens($message);
+        if ($budget && $tokens === []) {
+            return $this->productsInBudget($base, $budget);
+        }
+
         if ($tokens === []) {
             return [];
         }
@@ -694,6 +714,9 @@ TXT;
         $seg = (new AudienceSegment)->parse($message);
 
         foreach ($candidates as $p) {
+            if ($budget && ! $this->inBudget($p, $budget)) {
+                continue;
+            }
             $name = mb_strtolower((string) $p->nombre);
             $tags = mb_strtolower((string) ($p->etiquetas ?? ''));
             $desc = mb_strtolower((string) ($p->descripcion ?? ''));
@@ -761,11 +784,95 @@ TXT;
 
         usort($scored, fn ($a, $b) => $b['s'] <=> $a['s']);
 
+        if ($scored === [] && $budget) {
+            return $this->productsInBudget($base, $budget);
+        }
+
         if (count($scored) >= 2 && $scored[0]['s'] >= $scored[1]['s'] + 8) {
             return [$scored[0]['p']];
         }
 
         return array_map(fn ($x) => $x['p'], array_slice($scored, 0, 6));
+    }
+
+    /** @return array{min: float, max: ?float}|null */
+    private function parseBudget(string $message): ?array
+    {
+        $m = mb_strtolower($message);
+        $m = str_replace(['s/', 's /'], ' ', $m);
+
+        $num = '(\d+(?:[.,]\d+)?)';
+
+        if (preg_match('/entre\s+'.$num.'\s+y\s+'.$num.'/u', $m, $x)) {
+            $a = $this->toMoney($x[1]);
+            $b = $this->toMoney($x[2]);
+
+            return ['min' => min($a, $b), 'max' => max($a, $b)];
+        }
+        if (preg_match('/(?:menor(?:es)?\s+(?:a|de)|menos\s+de|m[aá]ximo|m[aá]x\.?|hasta|no\s+m[aá]s\s+de|no\s+mayor(?:es)?\s+(?:a|de)|por\s+debajo\s+de|bajo\s+(?:los?\s+)?|tope\s+de)\s+'.$num.'/u', $m, $x)) {
+            return ['min' => 0.0, 'max' => $this->toMoney($x[1])];
+        }
+        if (preg_match('/'.$num.'\s*(?:soles?)?\s*(?:o\s+menos|como\s+m[aá]ximo|m[aá]ximo)/u', $m, $x)) {
+            return ['min' => 0.0, 'max' => $this->toMoney($x[1])];
+        }
+        if (preg_match('/(?:m[aá]s\s+de|mayor(?:es)?\s+(?:a|de)|desde|m[ií]nimo|por\s+encima\s+de)\s+'.$num.'/u', $m, $x)) {
+            return ['min' => $this->toMoney($x[1]), 'max' => null];
+        }
+        if (preg_match('/presupuesto.{0,24}'.$num.'/u', $m, $x)) {
+            return ['min' => 0.0, 'max' => $this->toMoney($x[1])];
+        }
+        if (preg_match('/con\s+'.$num.'\s*(?:soles?|pe[n]?)\b/u', $m, $x)) {
+            return ['min' => 0.0, 'max' => $this->toMoney($x[1])];
+        }
+        if (preg_match('/barat|econ[oó]mic|accesible|lo\s+m[aá]s\s+barato|poco\s+presupuesto/u', $m)) {
+            return ['min' => 0.0, 'max' => 25.0];
+        }
+
+        return null;
+    }
+
+    private function toMoney(string $raw): float
+    {
+        $n = str_replace(',', '.', trim($raw));
+
+        return max(0.0, (float) $n);
+    }
+
+    private function inBudget(Producto $p, array $budget): bool
+    {
+        $price = (float) $p->precio_final;
+        $min = (float) ($budget['min'] ?? 0);
+        $max = $budget['max'] ?? null;
+        if ($min > 0 && $price < $min - 0.009) {
+            return false;
+        }
+        if ($max !== null && $price > (float) $max + 0.009) {
+            return false;
+        }
+
+        return true;
+    }
+
+    private function productsInBudget($base, array $budget): array
+    {
+        $max = $budget['max'];
+        $q = (clone $base)->orderBy('precio_venta');
+        if ($max !== null) {
+            $q->where(function ($b) use ($max) {
+                $b->where('precio_venta', '<=', ((float) $max) + 1)
+                    ->orWhere('descuento_pct', '>', 0);
+            });
+        }
+        if (($budget['min'] ?? 0) > 0) {
+            $q->where('precio_venta', '>=', max(0, (float) $budget['min'] - 5));
+        }
+
+        return $q->limit(80)->get()
+            ->filter(fn (Producto $p) => $this->inBudget($p, $budget) && (int) $p->stock > 0)
+            ->sortBy(fn (Producto $p) => (float) $p->precio_final)
+            ->take(6)
+            ->values()
+            ->all();
     }
 
     private function extractSearchTokens(string $message): array
@@ -786,6 +893,11 @@ TXT;
             'tienes', 'tenéis', 'tendre', 'tendré', 'algun', 'algún', 'algunos', 'algunas',
             'vendes', 'venden', 'sale', 'salen', 'quisiera', 'gustaria', 'gustaría', 'para',
             'años', 'ano', 'edad', 'regalo', 'regalar',
+            'presupuesto', 'presu', 'menor', 'menores', 'mayor', 'mayores',
+            'soles', 'sole', 'barato', 'barata', 'baratos', 'baratas', 'baratito',
+            'economico', 'económico', 'economica', 'económica', 'accesible',
+            'maximo', 'máximo', 'minimo', 'mínimo', 'hasta', 'desde', 'entre',
+            'abajo', 'debajo', 'encima', 'rango', 'tope', 'plata', 'dinero',
         ];
 
         foreach ($stop as $w) {
@@ -963,6 +1075,15 @@ TXT;
             $lines[] = 'Si faltan género o edad del DESTINATARIO, pregunta UNA vez: ¿es para hombre o mujer, y más o menos 10, 20, 30, 40, 50 o 60 años?';
         }
         $lines[] = 'total_productos_activos: '.$catalogCount;
+        $budget = $this->parseBudget($message);
+        if ($budget) {
+            $min = (float) ($budget['min'] ?? 0);
+            $max = $budget['max'];
+            $txt = $max === null
+                ? 'desde S/ '.number_format($min, 2, '.', '')
+                : 'hasta S/ '.number_format((float) $max, 2, '.', '').($min > 0 ? ' (mínimo S/ '.number_format($min, 2, '.', '').')' : '');
+            $lines[] = 'presupuesto_cliente: '.$txt.'. SOLO habla de productos de la lista (ya filtrados). Si hay lista, no digas que no hay.';
+        }
         $lines[] = 'Cliente: '.($cliente
             ? trim($cliente->nombre.' '.($cliente->apellido ?? '')).' (id '.$cliente->id_cliente.')'
             : 'invitado (no autenticado)');
@@ -1026,6 +1147,14 @@ TXT;
         }
 
         if (in_array($intent, ['product', 'mixed'], true) && $products === []) {
+            $budget = $this->parseBudget($message);
+            if ($budget) {
+                $tope = $budget['max'] !== null
+                    ? 'S/ '.rtrim(rtrim(number_format((float) $budget['max'], 2, '.', ''), '0'), '.')
+                    : 'ese rango';
+
+                return "No tengo productos con stock en {$tope} ahora. ¿Subimos un poco el presupuesto o buscas otra categoría (cajita, flores, billetera)?";
+            }
             if (preg_match('/\b(oso|osos|osito|ositos|teddy)\b/u', mb_strtolower($message))) {
                 return 'No tenemos peluches de oso / ositos en el catálogo. En Inicio puedes ver otros peluches o detalles (por nombre, no como osos). ¿Buscas otra cosa, por ejemplo cerdita o cajita?';
             }
@@ -1068,6 +1197,12 @@ TXT;
         }
 
         if ($products !== []) {
+            $budget = $this->parseBudget($message);
+            if ($budget && $budget['max'] !== null) {
+                $tope = 'S/ '.rtrim(rtrim(number_format((float) $budget['max'], 2, '.', ''), '0'), '.');
+
+                return 'Dentro de tu presupuesto (hasta '.$tope.') te recomiendo estas opciones. Precio y stock van en las tarjetas; toca Ver o Agregar.';
+            }
             if (count($products) === 1) {
                 $p = $products[0];
                 $stock = (int) $p->stock;
