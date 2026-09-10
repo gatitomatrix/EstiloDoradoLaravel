@@ -53,6 +53,11 @@ class AsistenteService
             return $this->resolveComplaintDetail($message, $cliente, $complaint);
         }
 
+        $esc = $this->whatsapp->match($message);
+        if ($esc === 'humano') {
+            return $this->handleHumano($message, $cliente);
+        }
+
         $intent = $this->detectIntent($message, $offeredIds !== []);
 
         if ($intent === 'add_to_cart') {
@@ -88,11 +93,7 @@ class AsistenteService
             ];
         }
 
-        $esc = $this->whatsapp->match($message);
         if ($esc) {
-            if ($esc === 'humano') {
-                return $this->handleHumano($message, $cliente);
-            }
             if (in_array($esc, ['reclamo', 'devolucion', 'cobro'], true)) {
                 $tipo = $this->whatsapp->classifyQueja($message) ?: $esc;
 
@@ -242,7 +243,8 @@ TXT;
         if ($hasOffered && $addCue && ! preg_match('/pedido|compras/u', $m)) {
             return 'add_to_cart';
         }
-        if ($hasOffered && preg_match('/^(quiero|dame|me\s+das)\b/u', $m) && ! preg_match('/pedido|compras/u', $m)) {
+        if ($hasOffered && preg_match('/^(quiero|dame|me\s+das)\b/u', $m)
+            && ! preg_match('/pedido|compras|hablar|due[nñ]|duelo|tienda|whats?app|asesor|gerente|humano|jefe|propietari/u', $m)) {
             return 'add_to_cart';
         }
 

@@ -12,7 +12,7 @@ class WhatsappEscalation
         $m = mb_strtolower(trim($message));
 
         $rules = [
-            'humano' => '/comunicarme|contactar(me)?|p[aá]same con|hablar(le)? (con|al|a)|due[nñ][oa]|gerente|asesor humano|persona real|con marlene|agente humano|quiero un (asesor|humano)/u',
+            'humano' => '/comunicarme|contactar(me)?|p[aá]same con|hablar(le)?\s*(con|al|a)|due[nñ][oa]|duelo|duenio|gerente|el jefe|la jefa|propietari[oa]|asesor humano|persona real|con marlene|agente humano|quiero un (asesor|humano)|hablar con (la )?tienda/u',
             'reclamo' => '/reclamo|queja|quejarme|me quejo|tengo una queja|inconform|molestia|(mi|el) producto lleg|empapad|aplastad|machucad|abollad|mojad|humedec|malograd|quebr[ao]|da[nñ]ad|no era lo que|producto incorrecto|me lleg[oó].{0,25}(mal|roto|aplast|machuc|aboll|mojad|empap|tarde|sucio|abierto)|lleg[oó].{0,20}(aplast|roto|machuc|empap)|no me lleg[oó]/u',
             'devolucion' => '/devoluci[oó]n|devolverlo|quiero cambiar(lo)? el producto|cambio (del|de) producto/u',
             'cobro' => '/cobr(aron|ado|aste).{0,24}(de\s*m[á]s|demas|dem[á]s|dos veces|doble)|doble cargo|me descontaron (de m[á]s|dos)|cobro (de m[á]s|demas|incorrecto)|me (han )?cobrado de/u',
