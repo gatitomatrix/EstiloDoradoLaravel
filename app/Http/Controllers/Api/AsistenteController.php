@@ -14,6 +14,7 @@ use Laravel\Sanctum\PersonalAccessToken;
 
 class AsistenteController extends Controller
 {
+    // POST /api/asistente — web y app. Si viene Bearer de cliente, le paso el Cliente a Dori.
     public function chat(Request $request, AsistenteService $asistente)
     {
         $data = $request->validate([

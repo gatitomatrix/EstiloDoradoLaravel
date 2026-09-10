@@ -10,6 +10,8 @@ use Illuminate\Support\Facades\Storage;
 
 class FeController extends Controller
 {
+    // Facturación electrónica (boleta/factura). PDF/XML para Mis compras y el admin.
+    // Recojo en efectivo: no se emite acá; si pagó Culqi y eligió BO/FA, sí.
     /**
      * POST /api/fe/emitir
      * payload:

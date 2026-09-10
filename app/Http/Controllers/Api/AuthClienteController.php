@@ -18,6 +18,8 @@ use Illuminate\Support\Facades\Schema;
 
 class AuthClienteController extends Controller
 {
+    // Login tienda: correo+clave o Google. Al registrarse manda WelcomeMail (Dori + logo).
+    // Google no usa nuestra clave: si pide "olvidé contraseña", lo mando a su cuenta Google.
     private const MSG_GOOGLE = 'Esta cuenta entra con Google. Usa el botón «Continuar con Google». La contraseña se cambia en tu cuenta de Google.';
 
     /**

@@ -9,6 +9,8 @@ use App\Http\Controllers\Controller;
 
 class PagoCulqiController extends Controller
 {
+    // Solo habla con Culqi (tarjeta / Yape). No crea el pedido.
+    // Si el token es tok_demo_ / no hay clave, responde demo para la sustentación.
     public function pagar(Request $request)
     {
         $data = $request->validate([

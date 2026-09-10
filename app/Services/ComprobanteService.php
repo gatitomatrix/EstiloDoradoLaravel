@@ -27,6 +27,8 @@ use chillerlan\QRCode\QROptions;
 
 class ComprobanteService
 {
+    // Arma el PDF (y XML si hay SUNAT). Los datos del cliente se guardan en el pedido
+    // para que al reabrir la boleta no salga 00000000.
     private function buildSee(): See
     {
         $see = new See();

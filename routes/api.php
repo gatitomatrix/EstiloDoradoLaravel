@@ -1,5 +1,10 @@
 <?php
 
+// Mapa rápido de la API (tienda + admin). Prefijo real: /api/...
+// Cliente: auth/*, productos, checkout, pedidos, asistente (Dori).
+// Admin:   /admin/* (Elvis). El path del panel en la web es secreto; acá las rutas no cambian.
+// Culqi cobra en /pagar-con-culqi; el pedido se arma en PedidoPagoController.
+
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;

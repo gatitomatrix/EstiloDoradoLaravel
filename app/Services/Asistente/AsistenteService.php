@@ -9,6 +9,9 @@ use Illuminate\Support\Facades\Log;
 
 class AsistenteService
 {
+    // Dori. Primero reglas (queja, pedidos, dueño). Si no calza, Gemini/Ollama.
+    // Invitado ve catálogo. Logueado puede ver sus 3 últimos pedidos.
+    // "Hablar con el dueño" / WhatsApp: solo si hay sesión, para saber quién es.
     public function __construct(
         private OllamaClient $ollama,
         private GeminiClient $gemini,

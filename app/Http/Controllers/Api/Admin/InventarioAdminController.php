@@ -11,6 +11,9 @@ use Carbon\Carbon;
 
 class InventarioAdminController extends Controller
 {
+    // Panel Inventario. Entrada = llegó mercadería (sube stock).
+    // Ajuste = merma / conteo (no es una compra).
+    // Salida de venta NO se pisa a mano: sale cuando el pedido se marca Entregado.
     // GET /api/admin/inventario
     public function index(Request $request)
     {

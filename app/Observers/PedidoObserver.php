@@ -8,6 +8,8 @@ use Illuminate\Support\Facades\DB;
 
 class PedidoObserver
 {
+    // Cada vez que se crea un pedido o cambia estado → PedidoMailer.
+    // afterCommit: no mandar el mail si la transacción del pago falla.
     public function created(Pedido $pedido): void
     {
         $this->queue($pedido);

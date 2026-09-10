@@ -10,6 +10,8 @@ use Illuminate\Validation\Rule;
 
 class ProductoController extends Controller
 {
+    // Catálogo público. ?q= busca nombre/etiquetas (AND). La descripción no decide el resultado
+    // para no devolver todo el catálogo cuando alguien escribe "detalle personalizado 1".
     // GET /api/productos?q=&categoria=&proveedor=&estado=
     public function index(\Illuminate\Http\Request $r)
     {

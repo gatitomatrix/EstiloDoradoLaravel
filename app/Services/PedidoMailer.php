@@ -10,6 +10,8 @@ use Illuminate\Support\Facades\Storage;
 
 class PedidoMailer
 {
+    // Correo al cliente cuando el pedido nace o cambia de estado.
+    // Si ya pagó (Culqi), intento pegar el PDF de la boleta/factura.
     public function notify(Pedido $pedido): void
     {
         $pedido->loadMissing(['cliente', 'detalles.producto']);

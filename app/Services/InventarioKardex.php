@@ -9,6 +9,8 @@ use Illuminate\Support\Facades\Schema;
 
 class InventarioKardex
 {
+    // Kardex = historial. No pone el stock él solo: quien llama (entrada, reserva, salida)
+    // ya cambió productos.stock. Aquí solo queda la fila para el reporte.
     public function registrar(
         int $idProducto,
         string $tipo,

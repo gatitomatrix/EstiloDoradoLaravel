@@ -11,6 +11,11 @@ use Illuminate\Support\Facades\Schema;
 
 class StockPedidoService
 {
+    // Flujo de stock que defiendo en la sustentación:
+    // 1) Al crear/pagar el pedido → reservar (baja el número en productos).
+    // 2) Elvis marca Entregado → confirmarEntrega (kardex = salida real).
+    // 3) Cancelado → devolver (el stock vuelve).
+    // Productos NO se edita a mano: el número lo mueve inventario / este servicio.
     public function __construct(private InventarioKardex $kardex) {}
 
     public function aplicarCambioEstado(Pedido $pedido, string $antes, string $despues): void

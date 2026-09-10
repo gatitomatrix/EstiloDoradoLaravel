@@ -14,6 +14,8 @@ use App\Services\SunatService; // el que ya te pasé
 
 class CheckoutController extends Controller
 {
+    // Camino viejo de confirmar (Culqi ya cobró). El flujo que usa la tienda hoy
+    // es PedidoPagoController::pagar / confirmar. Dejo esto por si alguna ruta antigua pega acá.
     public function confirmar(Request $req, SunatService $sunat)
     {
         // Requiere estar logueado (middleware sanctum en rutas)

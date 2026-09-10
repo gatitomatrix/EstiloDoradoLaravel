@@ -18,6 +18,9 @@ use App\Support\Celular;
 
 class PedidoPagoController extends Controller
 {
+    // Este es el checkout de verdad (web y app).
+    // confirmar = arma el pedido (recojo efectivo queda pendiente).
+    // pagar     = Culqi ok → estado pagado + reserva stock + boleta/factura si pidió.
     
     public function index(Request $request)
 {

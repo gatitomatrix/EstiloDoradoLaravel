@@ -11,6 +11,9 @@ use Illuminate\Support\Facades\DB;
 
 class PedidoEstadoController extends Controller
 {
+    // Lápiz de Pedidos: Elvis cambia pendiente → pagado → enviado → entregado / cancelado.
+    // Entregado confirma la salida en kardex. Cancelado devuelve stock.
+    // Si pasa de cancelado a entregado, StockPedidoService vuelve a reservar si hay unidades.
     // GET /api/admin/pedidos/{id}/estado-historial
     public function historial($id)
     {
