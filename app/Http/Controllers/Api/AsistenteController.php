@@ -90,7 +90,19 @@ class AsistenteController extends Controller
             return response()->json(['ok' => false, 'message' => 'Producto no existe'], 404);
         }
         if (! Schema::hasTable('asistente_feedback')) {
-            return response()->json(['ok' => true, 'skipped' => true]);
+            try {
+                Schema::create('asistente_feedback', function ($table) {
+                    $table->id();
+                    $table->unsignedInteger('id_producto');
+                    $table->string('voto', 8);
+                    $table->timestamp('created_at')->useCurrent();
+                    $table->index(['id_producto', 'voto']);
+                });
+            } catch (\Throwable $e) {
+                Log::warning('[asistente-feedback] no se pudo crear tabla: '.$e->getMessage());
+
+                return response()->json(['ok' => false, 'message' => 'No se pudo guardar el voto'], 500);
+            }
         }
         try {
             DB::table('asistente_feedback')->insert([
@@ -100,6 +112,8 @@ class AsistenteController extends Controller
             ]);
         } catch (\Throwable $e) {
             Log::warning('[asistente-feedback] '.$e->getMessage());
+
+            return response()->json(['ok' => false, 'message' => 'No se pudo guardar el voto'], 500);
         }
 
         return response()->json(['ok' => true]);
