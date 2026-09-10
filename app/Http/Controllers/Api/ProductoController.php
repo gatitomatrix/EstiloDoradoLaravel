@@ -41,38 +41,53 @@ class ProductoController extends Controller
         if ($r->filled('q')) {
             $term = trim((string) $r->q);
             $tokens = preg_split('/\s+/u', mb_strtolower($term)) ?: [];
-            $tokens = array_values(array_filter($tokens, fn ($t) => mb_strlen($t) >= 2));
-            if ($tokens === []) {
-                $tokens = [mb_strtolower($term)];
-            }
-            $q->where(function ($w) use ($tokens) {
-                foreach ($tokens as $t) {
-                    $variants = [$t];
-                    if (str_ends_with($t, 'es') && mb_strlen($t) > 4) {
-                        $variants[] = mb_substr($t, 0, -1);
-                        $variants[] = mb_substr($t, 0, -2);
-                    } elseif (str_ends_with($t, 's') && mb_strlen($t) > 3) {
-                        $variants[] = mb_substr($t, 0, -1);
-                    }
-                    $syn = [
-                        'cartera' => ['billetera'],
-                        'carteras' => ['billetera', 'billeteras'],
-                        'billetera' => ['cartera'],
-                        'billeteras' => ['cartera', 'carteras'],
-                        'monedero' => ['billetera', 'cartera'],
-                    ];
-                    foreach ($variants as $v) {
-                        foreach ($syn[$v] ?? [] as $s) {
-                            $variants[] = $s;
+            $tokens = array_values(array_filter($tokens, fn ($t) => $t !== ''));
+            $q->where(function ($outer) use ($tokens, $term) {
+                $likeTerm = '%'.$term.'%';
+                $outer->where('nombre', 'like', $likeTerm)
+                    ->orWhere('slug', 'like', $likeTerm)
+                    ->orWhere('etiquetas', 'like', $likeTerm);
+                if ($tokens !== []) {
+                    $outer->orWhere(function ($and) use ($tokens) {
+                        foreach ($tokens as $t) {
+                            $and->where(function ($w) use ($t) {
+                                $variants = [$t];
+                                if (! preg_match('/^\d+$/', $t)) {
+                                    if (str_ends_with($t, 'es') && mb_strlen($t) > 4) {
+                                        $variants[] = mb_substr($t, 0, -1);
+                                        $variants[] = mb_substr($t, 0, -2);
+                                    } elseif (str_ends_with($t, 's') && mb_strlen($t) > 3) {
+                                        $variants[] = mb_substr($t, 0, -1);
+                                    }
+                                }
+                                $syn = [
+                                    'cartera' => ['billetera'],
+                                    'carteras' => ['billetera', 'billeteras'],
+                                    'billetera' => ['cartera'],
+                                    'billeteras' => ['cartera', 'carteras'],
+                                    'monedero' => ['billetera', 'cartera'],
+                                ];
+                                foreach ($variants as $v) {
+                                    foreach ($syn[$v] ?? [] as $s) {
+                                        $variants[] = $s;
+                                    }
+                                }
+                                foreach (array_unique($variants) as $v) {
+                                    if (preg_match('/^\d+$/', $v)) {
+                                        $w->orWhere('nombre', 'like', '% '.$v)
+                                            ->orWhere('nombre', 'like', '% '.$v.' %')
+                                            ->orWhere('nombre', 'like', $v.' %')
+                                            ->orWhere('nombre', 'like', '%#'.$v.'%');
+                                    } else {
+                                        $like = '%'.$v.'%';
+                                        $w->orWhere('nombre', 'like', $like)
+                                            ->orWhere('slug', 'like', $like)
+                                            ->orWhere('etiquetas', 'like', $like);
+                                    }
+                                }
+                            });
                         }
-                    }
-                    foreach (array_unique($variants) as $v) {
-                        $like = '%'.$v.'%';
-                        $w->orWhere('nombre', 'like', $like)
-                            ->orWhere('descripcion', 'like', $like)
-                            ->orWhere('slug', 'like', $like)
-                            ->orWhere('etiquetas', 'like', $like);
-                    }
+                    });
                 }
             });
         }
