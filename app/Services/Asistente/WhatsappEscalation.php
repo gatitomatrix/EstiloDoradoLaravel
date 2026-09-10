@@ -157,15 +157,25 @@ class WhatsappEscalation
         return $inicio.' '.$cierre;
     }
 
-    public function displayNumber(): ?string
+    /** Mismo número que el botón de la tienda (web/app). */
+    private const FALLBACK = '51916464315';
+
+    public function digits(): string
     {
         $num = preg_replace('/\D+/', '', (string) config('llm.whatsapp.number', '')) ?? '';
         if (strlen($num) === 9 && str_starts_with($num, '9')) {
             $num = '51'.$num;
         }
         if (strlen($num) < 11) {
-            return null;
+            $num = self::FALLBACK;
         }
+
+        return $num;
+    }
+
+    public function displayNumber(): ?string
+    {
+        $num = $this->digits();
         $local = substr($num, -9);
 
         return '+51 '.substr($local, 0, 3).' '.substr($local, 3, 3).' '.substr($local, 6);
@@ -173,14 +183,7 @@ class WhatsappEscalation
 
     public function action(string $userMessage, ?int $pedidoId = null): ?array
     {
-        $num = preg_replace('/\D+/', '', (string) config('llm.whatsapp.number', '')) ?? '';
-        if (strlen($num) === 9 && str_starts_with($num, '9')) {
-            $num = '51'.$num;
-        }
-        if (strlen($num) < 11) {
-            return null;
-        }
-
+        $num = $this->digits();
         $text = 'Hola, soy cliente de Estilo Dorado.';
         if ($pedidoId) {
             $text .= ' Pedido N.° '.$pedidoId.'.';
@@ -191,6 +194,7 @@ class WhatsappEscalation
             'type' => 'whatsapp',
             'url' => 'https://wa.me/'.$num.'?text='.rawurlencode($text),
             'label' => 'Escribir por WhatsApp',
+            'phone' => $this->displayNumber(),
         ];
     }
 }

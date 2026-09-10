@@ -26,9 +26,9 @@ return [
     /** Si el LLM falla, usar reglas automáticamente */
     'fallback_rules' => filter_var(env('LLM_FALLBACK_RULES', true), FILTER_VALIDATE_BOOL),
 
-    /** WhatsApp de la tienda (wa.me). 51 + 9 dígitos, o solo 9xxxxxxxx */
+    /** WhatsApp de la tienda (wa.me). 51 + 9 dígitos, o solo 9xxxxxxxx. Vacío = el de la tienda (916 464 315). */
     'whatsapp' => [
-        'number' => env('WHATSAPP_NUMBER', ''),
+        'number' => env('WHATSAPP_NUMBER', '51916464315'),
     ],
 
     /** Correo de atención (opcional). Si está vacío, Dori solo ofrece WhatsApp. */

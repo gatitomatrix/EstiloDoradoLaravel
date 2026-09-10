@@ -363,8 +363,8 @@ TXT;
         $wa = $this->whatsapp->action($txt, null);
         $num = $this->whatsapp->displayNumber();
         $reply = $num
-            ? 'Claro. El WhatsApp de Estilo Dorado es '.$num.'. El botón ya lleva tu nombre para que sepan quién eres.'
-            : 'Claro. Una persona de la tienda te atiende por WhatsApp; el botón ya lleva tu nombre.';
+            ? 'Claro. El WhatsApp de Estilo Dorado es '.$num.'. Toca «Escribir por WhatsApp»: en el celular abre la app y en la computadora WhatsApp Web. El mensaje ya lleva tu nombre para que sepan quién eres.'
+            : 'Claro. Una persona de la tienda te atiende por WhatsApp; el botón abre el chat.';
 
         return [
             'reply' => $reply,
