@@ -78,7 +78,7 @@ class AsistenteAdminController extends Controller
     {
         $r->created_at = Carbon::parse($r->created_at)
             ->timezone('America/Lima')
-            ->format('d/m/Y H:i');
+            ->format('Y-m-d H:i:s');
         $tipo = (string) ($r->queja_tipo ?? '');
         $r->queja_label = $tipo !== '' ? (new WhatsappEscalation)->quejaLabel($tipo) : null;
         $r->productos_items = $this->parseProductos($r);

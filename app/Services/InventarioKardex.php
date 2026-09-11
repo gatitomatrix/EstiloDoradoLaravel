@@ -28,7 +28,7 @@ class InventarioKardex
             'id_producto' => $idProducto,
             'tipo_movimiento' => $tipo,
             'cantidad' => abs($cantidad),
-            'fecha' => now(),
+            'fecha' => now('America/Lima'),
             'observacion' => $observacion,
             'referencia_tipo' => $refTipo,
             'referencia_id' => $refId,

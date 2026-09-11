@@ -16,7 +16,7 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
-        date_default_timezone_set((string) (config('app.timezone') ?: 'America/Lima'));
+        date_default_timezone_set('America/Lima');
         Pedido::observe(PedidoObserver::class);
     }
 }

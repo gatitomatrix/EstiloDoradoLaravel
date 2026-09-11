@@ -124,7 +124,7 @@ class InventarioAdminController extends Controller
         ]);
 
         $empId = $data['id_empleado'] ?? optional($request->user())->id_empleado;
-        $fecha = isset($data['fecha']) ? Carbon::parse($data['fecha']) : now();
+        $fecha = $this->fechaMovimiento($data['fecha'] ?? null);
 
         return DB::transaction(function () use ($data, $empId, $fecha) {
             $p = Producto::lockForUpdate()->findOrFail($data['id_producto']);
@@ -160,7 +160,7 @@ class InventarioAdminController extends Controller
         ]);
 
         $empId = $data['id_empleado'] ?? optional($request->user())->id_empleado;
-        $fecha = isset($data['fecha']) ? Carbon::parse($data['fecha']) : now();
+        $fecha = $this->fechaMovimiento($data['fecha'] ?? null);
 
         return DB::transaction(function () use ($data, $empId, $fecha) {
             $p = Producto::lockForUpdate()->findOrFail($data['id_producto']);
@@ -201,7 +201,7 @@ class InventarioAdminController extends Controller
         ]);
 
         $empId = $data['id_empleado'] ?? optional($request->user())->id_empleado;
-        $fecha = isset($data['fecha']) ? Carbon::parse($data['fecha']) : now();
+        $fecha = $this->fechaMovimiento($data['fecha'] ?? null);
         $delta = (int) $data['cantidad'];
 
         return DB::transaction(function () use ($data, $delta, $empId, $fecha) {
@@ -226,5 +226,24 @@ class InventarioAdminController extends Controller
 
             return response()->json(['ok' => true, 'stock' => $p->stock, 'movimiento' => $mov]);
         });
+    }
+
+    /** Fecha del kardex: si solo mandan el día, se usa la hora actual de Lima (no 00:00). */
+    private function fechaMovimiento(?string $raw): Carbon
+    {
+        $now = Carbon::now('America/Lima');
+        if ($raw === null || trim($raw) === '') {
+            return $now;
+        }
+        $raw = trim($raw);
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $raw)) {
+            return Carbon::createFromFormat(
+                'Y-m-d H:i:s',
+                $raw.' '.$now->format('H:i:s'),
+                'America/Lima'
+            ) ?: $now;
+        }
+
+        return Carbon::parse($raw, 'America/Lima');
     }
 }

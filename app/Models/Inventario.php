@@ -15,6 +15,10 @@ class Inventario extends Model
         'referencia_tipo','referencia_id','id_empleado'
     ];
 
+    protected $casts = [
+        'fecha' => 'datetime',
+    ];
+
      public function producto()
     {
         return $this->belongsTo(Producto::class, 'id_producto', 'id_producto');
