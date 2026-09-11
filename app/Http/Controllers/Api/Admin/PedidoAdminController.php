@@ -202,21 +202,56 @@ class PedidoAdminController extends Controller
     public function update($id, Request $request)
     {
         $data = $request->validate([
-            'estado'       => 'required|in:pendiente,pagado,enviado,entregado,cancelado',
-            'forma_pago'   => 'nullable|in:tarjeta,yape,efectivo',
-            'nota_admin'   => 'nullable|string|max:500',
+            'estado'                    => 'required|in:pendiente,pagado,enviado,entregado,cancelado',
+            'forma_pago'                => 'nullable|in:tarjeta,yape,efectivo',
+            'nota_admin'                => 'nullable|string|max:800',
+            'telefono_contacto'         => 'nullable|string|max:20',
+            'confirmar_cambio_celular'  => 'nullable|boolean',
         ]);
         $p = Pedido::with('detalles')->find($id);
         if (!$p) return response()->json(['message'=>'Pedido no encontrado'],404);
         $antes = strtolower((string) $p->estado);
         $despues = strtolower((string) $data['estado']);
+
+        $actualCel = \App\Support\Celular::desdePedido($p);
+        if (! $actualCel) {
+            $cliTel = Cliente::where('id_cliente', $p->id_cliente)->value('telefono');
+            $actualCel = \App\Support\Celular::deCliente($cliTel);
+        }
+        $nuevoCel = null;
+        $cambiaCel = false;
+        if (array_key_exists('telefono_contacto', $data) && trim((string) $data['telefono_contacto']) !== '') {
+            $nuevoCel = \App\Support\Celular::deCliente($data['telefono_contacto']);
+            if (! $nuevoCel) {
+                return response()->json([
+                    'message' => 'Celular inválido. 9 dígitos que empiecen con 9. No uses el WhatsApp de la tienda.',
+                ], 422);
+            }
+            if ($nuevoCel !== $actualCel) {
+                if (! $request->boolean('confirmar_cambio_celular')) {
+                    return response()->json([
+                        'message' => 'Marca la confirmación: el cliente pidió cambiar el celular de este pedido.',
+                    ], 422);
+                }
+                $cambiaCel = true;
+            }
+        }
+
         try {
-            DB::transaction(function () use ($p, $data, $antes, $despues) {
+            DB::transaction(function () use ($p, $data, $antes, $despues, $cambiaCel, $actualCel, $nuevoCel) {
                 $p->estado = $data['estado'];
                 if (array_key_exists('forma_pago', $data)) {
                     $p->forma_pago = $data['forma_pago'];
                 }
                 $nota = trim((string) ($data['nota_admin'] ?? ''));
+                if ($cambiaCel && $nuevoCel) {
+                    $p->telefono_contacto = $nuevoCel;
+                    $linea = 'Celular '.($actualCel ?: 'sin número').' → '.$nuevoCel.' (pedido del cliente).';
+                    $nota = $nota === '' ? $linea : (str_contains($nota, $linea) ? $nota : $nota."\n".$linea);
+                    if (mb_strlen($nota) > 800) {
+                        $nota = mb_substr($nota, 0, 800);
+                    }
+                }
                 if (\Illuminate\Support\Facades\Schema::hasColumn('pedidos', 'nota_admin')) {
                     $p->nota_admin = $nota !== '' ? $nota : null;
                 }
@@ -240,7 +275,11 @@ class PedidoAdminController extends Controller
             ], 422);
         }
         $row = Pedido::leftJoin('clientes as c','c.id_cliente','=','pedidos.id_cliente')
-            ->select(['pedidos.*', DB::raw("TRIM(CONCAT(COALESCE(c.nombre,''),' ',COALESCE(c.apellido,''))) as cliente_nombre")])
+            ->select([
+                'pedidos.*',
+                DB::raw("TRIM(CONCAT(COALESCE(c.nombre,''),' ',COALESCE(c.apellido,''))) as cliente_nombre"),
+                DB::raw('c.telefono as cliente_telefono'),
+            ])
             ->where('pedidos.id_pedido',$p->id_pedido)->first();
         $dec = $this->decorateRow($row);
         $this->attachItems(collect([$dec]));
