@@ -13,7 +13,7 @@ class WhatsappEscalation
 
         $rules = [
             'humano' => '/comunicarme|contactar(me)?|p[aá]same con|hablar(le)?\s*(con|al|a)|due[nñ][oa]|duelo|duenio|gerente|el jefe|la jefa|propietari[oa]|asesor humano|persona real|con marlene|agente humano|quiero un (asesor|humano)|hablar con (la )?tienda/u',
-            'reclamo' => '/reclamo|queja|quejarme|me quejo|tengo una queja|inconform|molestia|(mi|el) producto lleg|empapad|aplastad|machucad|abollad|mojad|humedec|malograd|quebr[ao]|da[nñ]ad|no era lo que|producto incorrecto|me lleg[oó].{0,25}(mal|roto|aplast|machuc|aboll|mojad|empap|tarde|sucio|abierto)|lleg[oó].{0,20}(aplast|roto|machuc|empap)|no me lleg[oó]/u',
+            'reclamo' => '/reclamo|queja|quejarme|me quejo|tengo una queja|inconform|molestia|(mi|el) producto lleg|empapad|aplastad|machucad|abollad|mojad|humedec|malograd|quebr[ao]|da[nñ]ad|no era lo que|producto incorrecto|me lleg[oó].{0,25}(mal|roto|aplast|machuc|aboll|mojad|empap|tarde|sucio|abierto)|lleg[oó].{0,20}(aplast|roto|machuc|empap)|no me lleg[oó]|no\s+(me\s+)?lleg[oaó]|mi\s+pedido\s+no\s+|el\s+pedido\s+no\s+/u',
             'devolucion' => '/devoluci[oó]n|devolverlo|quiero cambiar(lo)? el producto|cambio (del|de) producto/u',
             'cobro' => '/cobr(aron|ado|aste).{0,24}(de\s*m[á]s|demas|dem[á]s|dos veces|doble)|doble cargo|me descontaron (de m[á]s|dos)|cobro (de m[á]s|demas|incorrecto)|me (han )?cobrado de/u',
             'comprobante' => '/anular (boleta|factura)|cambiar (el )?ruc|raz[oó]n social|comprobante mal|factura mal emitida/u',
@@ -73,7 +73,7 @@ class WhatsappEscalation
         if (preg_match('/cobr|demas|de m[á]s|doble cargo|descontaron/u', $m)) {
             return 'cobro';
         }
-        if (preg_match('/no me lleg|no lleg[oaó]|aun no lleg|aún no lleg|no aparece|extravi|perd[ií]d/u', $m)) {
+        if (preg_match('/no\s+(me\s+)?lleg|no\s+ha\s+lleg|a[uú]n\s+no(\s+me)?\s+lleg|todav[ií]a\s+no\s+lleg|no\s+aparece|extravi|perd[ií]d|no\s+me\s+(han\s+)?entreg|mi\s+pedido\s+no\b|el\s+pedido\s+no\b/u', $m)) {
             return 'no_llego';
         }
         if (preg_match('/devoluci|devolver|cambiar(lo)? el producto/u', $m)) {

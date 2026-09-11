@@ -61,6 +61,13 @@ class AsistenteService
             return $this->handleHumano($message, $cliente);
         }
 
+        // "mi pedido no llega" no es "ver mis pedidos": entra al flujo de queja (elige el #).
+        $saludoCorto = (bool) preg_match('/^(hola|buenos\s*d[ií]as|buenas(?:\s*tardes|\s*noches)?)[\s!¡.?]*$/iu', $message);
+        $queja = $saludoCorto ? null : $this->whatsapp->classifyQueja($message);
+        if (in_array($queja, ['no_llego', 'producto_danado', 'cobro', 'devolucion', 'demora'], true)) {
+            return $this->complaints->afterTipo($queja, $message, $cliente, $complaint);
+        }
+
         $intent = $this->detectIntent($message, $offeredIds !== []);
 
         if ($intent === 'add_to_cart') {
@@ -254,7 +261,16 @@ TXT;
         if (preg_match('/registr|cuenta|usuario|crear\s*cuenta|sign\s*up|login|iniciar\s*sesi/u', $m)) {
             return 'account';
         }
-        if (preg_match('/pedido|seguimiento|estado\s+de\s+mi|mis\s+compras|mis\s+pedidos/u', $m)) {
+        // Lista: "mis pedidos", "quiero ver mis pedidos", typo "pedodos". No "mi pedido no llega".
+        $pideLista = (bool) preg_match(
+            '/mis\s+ped|mis\s+compras|cu[aá]l(?:es)?\s+son\s+mis|quiero\s+ver\s+mis|ver\s+mis\s+|[uú]ltimos?\s+\d*\s*ped|seguimiento|estado\s+de\s+mi|pedido\s*#?\s*\d{1,8}/u',
+            $m
+        );
+        $quejaPedido = (bool) preg_match(
+            '/no\s+(me\s+)?lleg|no\s+ha\s+lleg|a[uú]n\s+no|todav[ií]a\s+no|extravi|demor|no\s+me\s+(han\s+)?entreg|perd[ií]d/u',
+            $m
+        );
+        if ($pideLista && ! $quejaPedido) {
             return 'order';
         }
         if (preg_match('/c[oó]mo\s+(hago|puedo|hago\s+para)?.{0,28}compr|para\s+comprar|c[oó]mo\s+compr|pasos.{0,12}compr|carrito|delivery|recojo|env[ií]o/u', $m)
