@@ -52,6 +52,13 @@ class ComplaintFlow
             return $this->maybePhone($tipo, $message, $cliente, $ctx);
         }
 
+        // Repite "no llega" / queja sin número: vuelvo a mostrar la lista, sin el error.
+        if (! preg_match('/\b\d{1,6}\b/u', $m)
+            && preg_match('/no\s+(me\s+)?lleg|no\s+ha\s+lleg|a[uú]n\s+no|todav[ií]a\s+no|extravi|demor|queja|reclamo|pedido/u', $m)
+            && ! preg_match('/primer|el\s+1\b|arriba|este\s+es/u', $m)) {
+            return $this->offerOrders($tipo, $message, $cliente, $ctx);
+        }
+
         $orders = $this->lastPaid($cliente);
         $ids = array_map(fn ($o) => (int) $o['id_pedido'], $orders);
         $pick = null;
