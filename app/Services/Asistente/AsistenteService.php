@@ -770,6 +770,12 @@ TXT;
                     if (str_starts_with($name, $t)) {
                         $score += 5;
                     }
+                    if (preg_match('/^\d+$/', $t) && preg_match('/(^|\s)'.preg_quote($t, '/').'(\s|$)/u', $name)) {
+                        $score += 28;
+                    }
+                }
+                if ((int) $p->id_producto === (int) $t && preg_match('/^\d+$/', $t)) {
+                    $score += 20;
                 }
                 if ($tags !== '' && str_contains($tags, $t)) {
                     $score += 12;
@@ -804,6 +810,27 @@ TXT;
         }
 
         usort($scored, fn ($a, $b) => $b['s'] <=> $a['s']);
+
+        $nums = array_values(array_filter($tokens, fn ($t) => (bool) preg_match('/^\d{1,4}$/', $t)));
+        if ($nums !== [] && $scored !== []) {
+            $withNum = array_values(array_filter($scored, function ($x) use ($nums) {
+                $n = mb_strtolower((string) $x['p']->nombre);
+                $id = (int) $x['p']->id_producto;
+                foreach ($nums as $num) {
+                    if ($id === (int) $num) {
+                        return true;
+                    }
+                    if (preg_match('/(^|\s)'.preg_quote($num, '/').'(\s|$)/u', $n)) {
+                        return true;
+                    }
+                }
+
+                return false;
+            }));
+            if ($withNum !== []) {
+                $scored = $withNum;
+            }
+        }
 
         if ($scored === [] && $budget) {
             return $this->productsInBudget($base, $budget);
@@ -931,10 +958,15 @@ TXT;
         $tokens = [];
         foreach ($parts as $t) {
             $t = trim($t);
-            if (mb_strlen($t) < 3) {
+            if ($t === '') {
                 continue;
             }
-            if (preg_match('/^\d+$/', $t)) {
+            // "detalle personalizado 18": el 18 identifica el SKU; no lo tiro.
+            if (preg_match('/^\d{1,4}$/', $t)) {
+                $tokens[] = $t;
+                continue;
+            }
+            if (mb_strlen($t) < 3) {
                 continue;
             }
             $tokens[] = $t;
