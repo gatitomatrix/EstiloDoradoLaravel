@@ -114,19 +114,36 @@ class InventarioAdminController extends Controller
     public function entrada(Request $request)
     {
         $data = $request->validate([
-            'id_producto'     => 'required|integer|exists:productos,id_producto',
-            'cantidad'        => 'required|integer|min:1',
-            'observacion'     => 'nullable|string',
-            'referencia_tipo' => 'nullable|in:pedido,ajuste,otro,compra',
-            'referencia_id'   => 'nullable|integer',
-            'fecha'           => 'nullable|date',
-            'id_empleado'     => 'nullable|integer|exists:empleados,id_empleado',
+            'id_producto'        => 'required|integer|exists:productos,id_producto',
+            'cantidad'           => 'required|integer|min:1',
+            'observacion'        => 'nullable|string',
+            'referencia_tipo'    => 'nullable|in:pedido,ajuste,otro,compra',
+            'referencia_id'      => 'nullable|integer',
+            'referencia_compra'  => 'nullable|string|max:80',
+            'fecha'              => 'nullable|date',
+            'id_empleado'        => 'nullable|integer|exists:empleados,id_empleado',
         ]);
 
         $empId = $data['id_empleado'] ?? optional($request->user())->id_empleado;
-        $fecha = $this->fechaMovimiento($data['fecha'] ?? null);
+        try {
+            $fecha = $this->fechaMovimiento($data['fecha'] ?? null);
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
 
-        return DB::transaction(function () use ($data, $empId, $fecha) {
+        $ref = $this->referenciaCompra($data);
+        if ($this->esFechaPasada($fecha) && mb_strlen($ref) < 3) {
+            return response()->json([
+                'message' => 'Si el ingreso es de un día anterior, indica la referencia de compra (factura o guía).',
+            ], 422);
+        }
+
+        $obs = trim((string) ($data['observacion'] ?? ''));
+        if ($ref !== '' && ! str_contains($obs, $ref)) {
+            $obs = trim($obs.' · Ref. compra: '.$ref);
+        }
+
+        return DB::transaction(function () use ($data, $empId, $fecha, $obs) {
             $p = Producto::lockForUpdate()->findOrFail($data['id_producto']);
             $p->stock += (int) $data['cantidad'];
             $p->save();
@@ -136,8 +153,8 @@ class InventarioAdminController extends Controller
                 'tipo_movimiento' => 'entrada',
                 'cantidad'        => (int) $data['cantidad'],
                 'fecha'           => $fecha,
-                'observacion'     => $data['observacion'] ?? null,
-                'referencia_tipo' => $data['referencia_tipo'] ?? null,
+                'observacion'     => $obs !== '' ? $obs : null,
+                'referencia_tipo' => $data['referencia_tipo'] ?? 'compra',
                 'referencia_id'   => $data['referencia_id'] ?? null,
                 'id_empleado'     => $empId,
             ]);
@@ -160,7 +177,11 @@ class InventarioAdminController extends Controller
         ]);
 
         $empId = $data['id_empleado'] ?? optional($request->user())->id_empleado;
-        $fecha = $this->fechaMovimiento($data['fecha'] ?? null);
+        try {
+            $fecha = $this->fechaMovimiento($data['fecha'] ?? null);
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
 
         return DB::transaction(function () use ($data, $empId, $fecha) {
             $p = Producto::lockForUpdate()->findOrFail($data['id_producto']);
@@ -201,7 +222,11 @@ class InventarioAdminController extends Controller
         ]);
 
         $empId = $data['id_empleado'] ?? optional($request->user())->id_empleado;
-        $fecha = $this->fechaMovimiento($data['fecha'] ?? null);
+        try {
+            $fecha = $this->fechaMovimiento($data['fecha'] ?? null);
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
         $delta = (int) $data['cantidad'];
 
         return DB::transaction(function () use ($data, $delta, $empId, $fecha) {
@@ -228,7 +253,7 @@ class InventarioAdminController extends Controller
         });
     }
 
-    /** Fecha del kardex: si solo mandan el día, se usa la hora actual de Lima (no 00:00). */
+    /** Fecha del kardex: si solo mandan el día, se usa la hora actual de Lima (no 00:00). Sin fechas futuras. */
     private function fechaMovimiento(?string $raw): Carbon
     {
         $now = Carbon::now('America/Lima');
@@ -237,13 +262,36 @@ class InventarioAdminController extends Controller
         }
         $raw = trim($raw);
         if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $raw)) {
-            return Carbon::createFromFormat(
+            $fecha = Carbon::createFromFormat(
                 'Y-m-d H:i:s',
                 $raw.' '.$now->format('H:i:s'),
                 'America/Lima'
             ) ?: $now;
+        } else {
+            $fecha = Carbon::parse($raw, 'America/Lima');
         }
+        if ($fecha->copy()->timezone('America/Lima')->startOfDay()->gt($now->copy()->startOfDay())) {
+            throw new \InvalidArgumentException('No se puede registrar un movimiento con fecha futura.');
+        }
+        return $fecha;
+    }
 
-        return Carbon::parse($raw, 'America/Lima');
+    private function esFechaPasada(Carbon $fecha): bool
+    {
+        $hoy = Carbon::now('America/Lima')->toDateString();
+        return $fecha->copy()->timezone('America/Lima')->toDateString() < $hoy;
+    }
+
+    private function referenciaCompra(array $data): string
+    {
+        $ref = trim((string) ($data['referencia_compra'] ?? ''));
+        if ($ref !== '') {
+            return $ref;
+        }
+        $obs = (string) ($data['observacion'] ?? '');
+        if (preg_match('/Ref\.?\s*compra:\s*(.+)$/iu', $obs, $m)) {
+            return trim($m[1]);
+        }
+        return '';
     }
 }
