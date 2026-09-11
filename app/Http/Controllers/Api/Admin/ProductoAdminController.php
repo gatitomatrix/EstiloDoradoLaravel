@@ -16,8 +16,12 @@ class ProductoAdminController extends Controller
     public function index(Request $request)
     {
         $per   = (int)($request->get('per_page', 20));
-        $sort  = $request->get('sort','created_at');
-        $order = $request->get('order','desc');
+        $sort  = (string) $request->get('sort', 'id_producto');
+        $order = strtolower((string) $request->get('order', 'asc')) === 'desc' ? 'desc' : 'asc';
+        $allowedSort = ['id_producto', 'nombre', 'created_at', 'updated_at', 'stock', 'precio_venta', 'estado'];
+        if (! in_array($sort, $allowedSort, true)) {
+            $sort = 'id_producto';
+        }
 
         $q = Producto::query()
             ->select([
@@ -31,15 +35,23 @@ class ProductoAdminController extends Controller
 
         // Acepta q|search
         $term = trim((string)($request->input('q') ?? $request->input('search') ?? ''));
+        $term = ltrim($term, '#');
         if ($term !== '') {
             $q->where(function ($w) use ($term) {
-                $w->where('nombre', 'like', "%$term%")
-                    ->orWhere('descripcion', 'like', "%$term%")
-                    ->orWhere('etiquetas', 'like', "%$term%");
                 if (ctype_digit($term)) {
-                    $w->orWhere('id_producto', (int) $term);
+                    $w->where('id_producto', (int) $term)
+                        ->orWhere('id_producto', 'like', $term.'%')
+                        ->orWhere('nombre', 'like', '%'.$term.'%');
+                } else {
+                    $w->where('nombre', 'like', "%$term%")
+                        ->orWhere('descripcion', 'like', "%$term%")
+                        ->orWhere('etiquetas', 'like', "%$term%");
                 }
             });
+            if (ctype_digit($term)) {
+                $sort = 'id_producto';
+                $order = 'asc';
+            }
         }
 
         // Acepta categoria|id_categoria
