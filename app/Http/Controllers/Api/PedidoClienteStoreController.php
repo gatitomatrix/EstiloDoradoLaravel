@@ -116,7 +116,7 @@ class PedidoClienteStoreController extends Controller
                     'id_pedido'       => $pedido->id_pedido,
                     'estado_anterior' => null,
                     'estado_nuevo'    => 'pendiente',
-                    'fecha'           => now(),
+                    'fecha'           => now('America/Lima'),
                     'comentario'      => 'Pedido creado desde la aplicación móvil',
                 ]);
 

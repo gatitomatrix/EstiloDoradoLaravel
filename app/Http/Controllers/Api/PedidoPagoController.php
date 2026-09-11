@@ -31,7 +31,18 @@ class PedidoPagoController extends Controller
         ->orderByDesc('id_pedido')
         ->get();
 
-    $list = $pedidos->map(function ($p) {
+    $lastEstado = collect();
+    $ids = $pedidos->pluck('id_pedido')->filter()->all();
+    if ($ids) {
+        $lastEstado = DB::table('pedido_estado_historial')
+            ->select('id_pedido', DB::raw('MAX(fecha) as fecha_estado'))
+            ->whereIn('id_pedido', $ids)
+            ->groupBy('id_pedido')
+            ->get()
+            ->keyBy('id_pedido');
+    }
+
+    $list = $pedidos->map(function ($p) use ($lastEstado) {
         $det = $p->detalles;
         $first = $det->first();
         $firstName = $first?->producto?->nombre ?? ('#' . ($first?->id_producto ?? '—'));
@@ -42,10 +53,15 @@ class PedidoPagoController extends Controller
         $serie = $p->comprobante_serie;
         $num8  = str_pad((string)$p->comprobante_numero, 8, '0', STR_PAD_LEFT);
         $emitido = $this->comprobanteEmitido($p);
+        $feRaw = optional($lastEstado->get($p->id_pedido))->fecha_estado;
+        $fechaEstado = $feRaw
+            ? \Carbon\Carbon::parse($feRaw, 'America/Lima')->format('Y-m-d H:i:s')
+            : optional($p->fecha_pedido)->format('Y-m-d H:i:s');
 
         return [
             'id_pedido'         => $p->id_pedido,
             'fecha_pedido'      => optional($p->fecha_pedido)->format('Y-m-d H:i:s'),
+            'fecha_estado'      => $fechaEstado,
             'estado'            => $p->estado,
             'total'             => $p->total,
             'forma_pago'        => $p->forma_pago,
@@ -302,7 +318,7 @@ class PedidoPagoController extends Controller
                     'id_pedido'       => $pedido->id_pedido,
                     'estado_anterior' => $anterior,
                     'estado_nuevo'    => 'cancelado',
-                    'fecha'           => now(),
+                    'fecha'           => now('America/Lima'),
                     'comentario'      => $data['motivo'] ?? 'Cancelado por el cliente',
                 ]);
             } catch (\Throwable $e) {
@@ -395,7 +411,7 @@ class PedidoPagoController extends Controller
                     'id_pedido'       => $pedido->id_pedido,
                     'estado_anterior' => 'pendiente',
                     'estado_nuevo'    => 'pagado',
-                    'fecha'           => now(),
+                    'fecha'           => now('America/Lima'),
                     'comentario'      => 'Pago completado por el cliente (app móvil)',
                 ]);
             } catch (\Throwable $e) {
@@ -513,6 +529,7 @@ class PedidoPagoController extends Controller
         return [
             'id_pedido'         => $p->id_pedido,
             'fecha_pedido'      => $p->fecha_pedido?->format('Y-m-d H:i:s'),
+            'fecha_estado'      => $this->ultimaFechaEstado($p),
             'estado'            => $p->estado,
             'total'             => $p->total,
             'forma_pago'        => $p->forma_pago,
@@ -536,6 +553,15 @@ class PedidoPagoController extends Controller
             'costo_envio' => $envioCosto,
             'envio_etiqueta' => $envioEtiqueta,
         ];
+    }
+
+    private function ultimaFechaEstado(Pedido $p): string
+    {
+        $raw = PedidoEstadoHistorial::where('id_pedido', $p->id_pedido)->max('fecha');
+        if ($raw) {
+            return \Carbon\Carbon::parse($raw, 'America/Lima')->format('Y-m-d H:i:s');
+        }
+        return optional($p->fecha_pedido)->format('Y-m-d H:i:s') ?: now('America/Lima')->format('Y-m-d H:i:s');
     }
 
     /** @param array<string,mixed> $data */

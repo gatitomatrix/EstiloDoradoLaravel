@@ -13,4 +13,15 @@ class PedidoEstadoHistorial extends Model
     protected $fillable = [
         'id_pedido','estado_anterior','estado_nuevo','fecha','comentario','id_empleado'
     ];
+
+    protected $casts = [
+        'fecha' => 'datetime',
+    ];
+
+    protected function serializeDate(\DateTimeInterface $date): string
+    {
+        return \Carbon\Carbon::instance($date)
+            ->timezone('America/Lima')
+            ->format('Y-m-d H:i:s');
+    }
 }

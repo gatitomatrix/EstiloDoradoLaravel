@@ -56,7 +56,7 @@ class PedidoEstadoController extends Controller
                     'id_pedido'       => $pedido->id_pedido,
                     'estado_anterior' => $anterior,
                     'estado_nuevo'    => $data['estado'],
-                    'fecha'           => now(),
+                    'fecha'           => now('America/Lima'),
                     'comentario'      => $data['comentario'] ?? null,
                     'id_empleado'     => $data['id_empleado'] ?? null,
                 ]);

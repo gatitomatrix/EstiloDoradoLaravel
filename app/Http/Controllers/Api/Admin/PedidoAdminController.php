@@ -223,7 +223,7 @@ class PedidoAdminController extends Controller
                         'id_pedido'       => $p->id_pedido,
                         'estado_anterior' => $antes,
                         'estado_nuevo'    => $despues,
-                        'fecha'           => now(),
+                        'fecha'           => now('America/Lima'),
                         'comentario'      => $nota !== '' ? $nota : 'Cambio desde panel de pedidos',
                     ]);
                 }
