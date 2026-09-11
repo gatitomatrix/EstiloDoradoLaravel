@@ -54,7 +54,7 @@ class AuthClienteController extends Controller
         $payload = [
             'nombre'    => $data['nombre'],
             'apellido'  => $data['apellido'] ?? null,
-            'telefono'  => $data['telefono'] ?? null,
+            'telefono'  => \App\Support\Celular::deCliente($data['telefono'] ?? null),
             'email'     => $data['email'],
             'direccion' => $dir === '' ? null : $dir,
             'contrasena'=> Hash::make($data['password']),
@@ -174,6 +174,10 @@ class AuthClienteController extends Controller
             'telefono'  => 'nullable|string|max:20',
             'direccion' => 'nullable|string',
         ]);
+
+        if (array_key_exists('telefono', $data)) {
+            $data['telefono'] = \App\Support\Celular::deCliente($data['telefono'] ?? null);
+        }
 
         $c->fill($data)->save();
 

@@ -101,13 +101,13 @@ class PedidoPagoController extends Controller
 
 
         $user = $request->user();
-        $cel = Celular::normalizar($data['telefono'] ?? null);
+        $cel = Celular::deCliente($data['telefono'] ?? null);
         $dirPre = (string) ($data['direccion_entrega'] ?? '');
         $esRetiroPre = str_contains(mb_strtoupper($dirPre), 'RETIRO') || ($data['forma_pago'] ?? '') === 'efectivo';
         if (! $esRetiroPre && ! $cel) {
             return response()->json([
                 'success' => false,
-                'message' => 'Para el envío indica un celular de contacto (9 dígitos, empieza con 9).',
+                'message' => 'Para el envío indica un celular de contacto (9 dígitos, empieza con 9). No uses el WhatsApp de la tienda.',
             ], 422);
         }
 
@@ -450,8 +450,8 @@ class PedidoPagoController extends Controller
         }
         $pedido->save();
 
-        $actual = Celular::normalizar($user->telefono ?? null);
-        if (! $actual) {
+        $actual = Celular::deCliente($user->telefono ?? null);
+        if (! $actual && $cel) {
             $user->telefono = $cel;
             $user->save();
         }

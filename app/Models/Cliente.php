@@ -50,7 +50,7 @@ class Cliente extends Authenticatable
             'id_cliente' => $this->id_cliente,
             'nombre' => $this->nombre,
             'apellido' => $this->apellido,
-            'telefono' => $this->telefono,
+            'telefono' => \App\Support\Celular::deCliente($this->telefono),
             'email' => $this->email,
             'direccion' => $this->direccion,
             'auth_provider' => $this->esGoogle() ? self::PROVIDER_GOOGLE : self::PROVIDER_LOCAL,
