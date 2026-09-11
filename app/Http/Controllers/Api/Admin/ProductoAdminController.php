@@ -36,6 +36,9 @@ class ProductoAdminController extends Controller
                 $w->where('nombre', 'like', "%$term%")
                     ->orWhere('descripcion', 'like', "%$term%")
                     ->orWhere('etiquetas', 'like', "%$term%");
+                if (ctype_digit($term)) {
+                    $w->orWhere('id_producto', (int) $term);
+                }
             });
         }
 

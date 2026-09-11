@@ -26,6 +26,7 @@ class InventarioAdminController extends Controller
         $idProducto = $request->get('producto', $request->get('id_producto'));
         $idEmpleado = $request->get('empleado', $request->get('id_empleado'));
         $refTipo    = $request->get('referencia_tipo');
+        $term       = trim((string) ($request->get('q') ?? $request->get('search') ?? ''));
 
         $q = DB::table('inventario as i')
             ->join('productos as p', 'p.id_producto', '=', 'i.id_producto')
@@ -48,6 +49,14 @@ class InventarioAdminController extends Controller
             );
 
         if ($idProducto) $q->where('i.id_producto', $idProducto);
+        if ($term !== '') {
+            $q->where(function ($w) use ($term) {
+                $w->where('p.nombre', 'like', '%'.$term.'%');
+                if (ctype_digit($term)) {
+                    $w->orWhere('i.id_producto', (int) $term);
+                }
+            });
+        }
         if ($tipo)       $q->where('i.tipo_movimiento', $tipo);
         if ($refTipo)    $q->where('i.referencia_tipo', $refTipo);
         if ($idEmpleado) $q->where('i.id_empleado', $idEmpleado);
