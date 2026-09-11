@@ -24,6 +24,7 @@ class PedidoAdminController extends Controller
             ->select([
                 'pedidos.*',
                 DB::raw("TRIM(CONCAT(COALESCE(c.nombre,''),' ',COALESCE(c.apellido,''))) as cliente_nombre"),
+                DB::raw('c.telefono as cliente_telefono'),
             ])
             ->orderByDesc('pedidos.id_pedido');
 
@@ -125,7 +126,10 @@ class PedidoAdminController extends Controller
         $p = Pedido::with(['cliente','detalles.producto','historial'])->find($id);
         if (!$p) return response()->json(['message'=>'No encontrado'],404);
         $p->cliente_nombre = trim(($p->cliente->nombre ?? '').' '.($p->cliente->apellido ?? ''));
-        $p->telefono_contacto = \App\Support\Celular::desdePedido($p) ?: ($p->cliente->telefono ?? null);
+        $c = \App\Support\Celular::contactoPedido($p, $p->cliente?->telefono ?? null);
+        $p->telefono_contacto = $c['telefono_contacto'];
+        $p->celular_fmt = $c['celular_fmt'];
+        $p->wa_url = $c['wa_url'];
         $urls = $this->buildComprobanteUrls($p);
         $p->pdf_url = $urls['pdf'] ?? null;
         $p->xml_url = $urls['xml'] ?? null;
@@ -293,7 +297,10 @@ class PedidoAdminController extends Controller
         $row->pdf_url = $urls['pdf'] ?? null;
         $row->xml_url = $urls['xml'] ?? null;
         $row->cdr_url = $urls['cdr'] ?? null;
-        $row->telefono_contacto = \App\Support\Celular::desdePedido($row);
+        $c = \App\Support\Celular::contactoPedido($row, $row->cliente_telefono ?? null);
+        $row->telefono_contacto = $c['telefono_contacto'];
+        $row->celular_fmt = $c['celular_fmt'];
+        $row->wa_url = $c['wa_url'];
         return $row;
     }
 

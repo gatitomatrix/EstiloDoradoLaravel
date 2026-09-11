@@ -38,6 +38,28 @@ class Celular
         return $d;
     }
 
+    /** Enlace wa.me al celular del cliente (nunca el de la tienda). */
+    public static function waMe(?string $raw, ?string $text = null): ?string
+    {
+        $d = self::deCliente($raw);
+        if (! $d) {
+            return null;
+        }
+        $q = $text ? ('?text='.rawurlencode($text)) : '';
+
+        return 'https://wa.me/51'.$d.$q;
+    }
+
+    public static function formato(?string $raw): ?string
+    {
+        $d = self::deCliente($raw);
+        if (! $d) {
+            return null;
+        }
+
+        return '+51 '.$d;
+    }
+
     public static function desdePedido($pedido): ?string
     {
         if (! $pedido) {
@@ -51,5 +73,23 @@ class Celular
         }
 
         return null;
+    }
+
+    /** Datos para el admin: número + enlace WhatsApp del cliente del pedido. */
+    public static function contactoPedido($pedido, ?string $clienteTel = null): array
+    {
+        $cel = self::desdePedido($pedido) ?: self::deCliente($clienteTel);
+        $id = $pedido->id_pedido ?? '';
+        $nombre = trim((string) ($pedido->cliente_nombre ?? ''));
+        $first = $nombre !== '' ? explode(' ', $nombre)[0] : '';
+        $text = $first !== ''
+            ? "Hola {$first}, te escribimos de Estilo Dorado por tu pedido #{$id}."
+            : "Hola, te escribimos de Estilo Dorado por tu pedido #{$id}.";
+
+        return [
+            'telefono_contacto' => $cel,
+            'celular_fmt' => self::formato($cel),
+            'wa_url' => self::waMe($cel, $text),
+        ];
     }
 }
