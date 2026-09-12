@@ -250,11 +250,17 @@ TXT;
         $m = mb_strtolower($message);
 
         $addCue = (bool) preg_match('/agrega|a[nñ]ade|al\s+carrito|me\s+llevo|ponme|ponlo|quiero\s+(esa|ese|esta|este|la|el|una|uno|\d)|la\s+primera|la\s+segunda|la\s+\d/u', $m);
-        if ($hasOffered && $addCue && ! preg_match('/pedido|compras/u', $m)) {
+        $pideRegalo = (bool) preg_match(
+            '/regalo|regalar|para\s+(mi|una?|el|la)|mam[aá]|madre|pap[aá]|padre|cumple|busco|otro|flores|billetera|peluche|cajita/u',
+            $m
+        );
+        if ($hasOffered && $addCue && ! preg_match('/pedido|compras/u', $m) && ! $pideRegalo) {
             return 'add_to_cart';
         }
         if ($hasOffered && preg_match('/^(quiero|dame|me\s+das)\b/u', $m)
-            && ! preg_match('/pedido|compras|hablar|due[nñ]|duelo|tienda|whats?app|asesor|gerente|humano|jefe|propietari/u', $m)) {
+            && ! preg_match('/pedido|compras|hablar|due[nñ]|duelo|tienda|whats?app|asesor|gerente|humano|jefe|propietari/u', $m)
+            && ! $pideRegalo
+            && mb_strlen($m) < 48) {
             return 'add_to_cart';
         }
 
@@ -282,7 +288,7 @@ TXT;
             return 'payment';
         }
 
-        if (preg_match('/cumplea|cumple\b|recomend|regalo|regalar|aniversario|para\s+(una?\s+)?(mujer|chica|dama|se[nñ]orita)|novia|hermana|pap[aá]|padre|esposo/u', $m)) {
+        if (preg_match('/cumplea|cumple\b|recomend|regalo|regalar|aniversario|para\s+(una?\s+)?(mujer|chica|dama|se[nñ]orita)|novia|hermana|mam[aá]|madre|pap[aá]|padre|esposo/u', $m)) {
             return 'product';
         }
         if (preg_match('/cu[aá]ntos\s+product|cu[aá]ntas\s+cosas|total\s+del\s+cat[aá]logo|variedad/u', $m)) {
@@ -750,7 +756,7 @@ TXT;
                 continue;
             }
             $msg = mb_strtolower($message);
-            if (preg_match('/mujer|chica|dama|se[nñ]orita|novia/u', $msg) && str_contains($tags, 'caballero')) {
+            if (preg_match('/mujer|chica|dama|se[nñ]orita|novia|mam[aá]|madre|hermana|t[ií]a|esposa/u', $msg) && str_contains($tags, 'caballero')) {
                 continue;
             }
             if (preg_match('/para\s+(un\s+|el\s+|mi\s+)?(hombre|caballero|chico|var[oó]n|pap[aá]|padre|esposo|marido)\b/u', $msg)
@@ -798,8 +804,13 @@ TXT;
             if ($seg->edad === 10 && preg_match('/billetera|caballero|perfume|militar/u', $hay) && ! preg_match('/infantil|nino|niño|edad:10/u', $hay)) {
                 $score -= 20;
             }
-            if ($seg->edad !== null && $seg->edad >= 50 && preg_match('/stich|hot wheels|infantil|cerdita|edad:10/u', $hay) && ! preg_match('/edad:50|edad:60|mayor|adulto/u', $hay)) {
+            if ($seg->edad !== null && $seg->edad >= 50 && preg_match('/stich|hot\s*wheels|hotwheels|infantil|cerdita|edad:10/u', $hay) && ! preg_match('/edad:50|edad:60|mayor|adulto/u', $hay)) {
                 $score -= 16;
+            }
+            if ($seg->genero === 'mujer' && ($seg->edad === null || $seg->edad >= 20)
+                && preg_match('/hot\s*wheels|hotwheels|\bstich\b|edad:10/u', $hay)
+                && ! preg_match('/flores|perfume|florales/u', $hay)) {
+                $score -= 25;
             }
             if ($seg->genero === 'hombre' && $seg->edad !== 10 && preg_match('/\bflores\b/u', $hay) && ! str_contains($tags, 'caballero')) {
                 $score -= 8;
@@ -1017,7 +1028,7 @@ TXT;
         $blob = mb_strtolower($message);
         $paraHombre = (bool) preg_match('/\b(hermano|t[ií]o|primo|suegro|pap[aá]|padre|esposo|marido|novio|hombre|caballero|chico|var[oó]n)\b/u', $blob)
             && ! preg_match('/hermana|mujer|chica|dama|novia|mam[aá]|t[ií]a/u', $blob);
-        $paraMujer = (bool) preg_match('/mujer|chica|dama|se[nñ]orita|novia/u', $blob)
+        $paraMujer = (bool) preg_match('/mujer|chica|dama|se[nñ]orita|novia|mam[aá]|madre|hermana|t[ií]a|esposa|abuela/u', $blob)
             && ! $paraHombre;
 
         if (preg_match('/cumplea|cumple\b|aniversario|fiesta|graduac|san\s*valentin|valent[ií]n|d[ií]a\s+de\s+la\s+madre|d[ií]a\s+del\s+padre|amigo\s*secreto|navidad/u', $blob)) {
