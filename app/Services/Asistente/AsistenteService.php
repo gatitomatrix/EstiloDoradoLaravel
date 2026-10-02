@@ -229,9 +229,10 @@ DATOS FIJOS DE LA TIENDA (puedes usarlos siempre):
 - Devoluciones: coordinar con la tienda; no prometas plazos que no están en el contexto.
 
 REGLAS DE PRODUCTOS (estricto):
-1) Precios, stock y nombres SOLO del bloque "Productos encontrados".
+1) Precios y nombres SOLO del bloque "Productos encontrados".
 2) total_productos_activos = tamaño real del catálogo.
-2b) Si preguntan qué venden o cuántos productos: di que hay total_productos_activos y «Te recomendamos estos» (máximo 5 de Productos encontrados). NO listes precios ni stock en el texto: las tarjetas ya los muestran.
+2b) Si preguntan qué venden o cuántos productos: di que hay total_productos_activos y «Te recomendamos estos» (máximo 5 de Productos encontrados). NO listes precios en el texto: las tarjetas ya los muestran.
+2c) NUNCA digas cuántas unidades hay. Si preguntan el stock o "cuántos quedan", responde solo "disponible" o "agotado". No escribas el número.
 3) Si esa lista NO está vacía, esos productos EXISTEN: dilo, cotiza y ofrece. PROHIBIDO "no tenemos" en ese caso.
 4) Lista vacía: no hay ese artículo. NO inventes Cerdita ni otro nombre. Invita a otra palabra o a Inicio.
 5) NUNCA digas que ya agregaste al carrito; invita al botón Agregar o a «quiero la [nombre]».
@@ -550,11 +551,6 @@ TXT;
             ];
         }
 
-        $qty = 1;
-        if (preg_match('/\b(\d{1,2})\s*(unidad|unidades|x)?\b/u', mb_strtolower($message), $qm)) {
-            $qty = max(1, min(20, (int) $qm[1]));
-        }
-
         $picked = $this->matchOffered($message, $offered);
 
         if (count($picked) === 1) {
@@ -568,20 +564,38 @@ TXT;
                     'action' => null,
                 ];
             }
-            $qty = min($qty, $stock);
+            $asked = 1;
+            if (preg_match('/\b(\d{1,2})\s*(unidad|unidades|x)?\b/u', mb_strtolower($message), $qm)) {
+                $asked = max(1, min(20, (int) $qm[1]));
+            }
+            if ($asked > $stock) {
+                return $empty + [
+                    'reply' => 'No hay más unidades disponibles de '.$p->nombre.' para esa cantidad. ¿Agrego 1?',
+                    'products' => [$card],
+                    'action' => [
+                        'type' => 'confirm_add',
+                        'id' => $p->id_producto,
+                        'qty' => 1,
+                        'nombre' => $p->nombre,
+                        'precio' => (float) $p->precio_final,
+                        'stock' => $stock,
+                        'imagen_url' => $p->imagen_url,
+                    ],
+                ];
+            }
 
             return $empty + [
                 'reply' => sprintf(
-                    '¿Agrego %s × %d (S/ %s c/u) al carrito? Confirma y uso el mismo carrito de la app, con el stock real.',
+                    '¿Agrego %s × %d (S/ %s c/u) al carrito? Confirma y uso el mismo carrito de la tienda.',
                     $p->nombre,
-                    $qty,
+                    $asked,
                     number_format((float) $p->precio_final, 2, '.', '')
                 ),
                 'products' => [$card],
                 'action' => [
                     'type' => 'confirm_add',
                     'id' => $p->id_producto,
-                    'qty' => $qty,
+                    'qty' => $asked,
                     'nombre' => $p->nombre,
                     'precio' => (float) $p->precio_final,
                     'stock' => $stock,
@@ -1158,11 +1172,11 @@ TXT;
         } else {
             foreach ($products as $p) {
                 $lines[] = sprintf(
-                    '- id=%d | %s | S/ %s | stock=%d | tags=%s | desc=%s',
+                    '- id=%d | %s | S/ %s | %s | tags=%s | desc=%s',
                     $p->id_producto,
                     $p->nombre,
                     number_format((float) $p->precio_final, 2, '.', ''),
-                    (int) $p->stock,
+                    ((int) $p->stock) < 1 ? 'agotado' : 'disponible',
                     $p->etiquetas ?: '-',
                     mb_substr(trim((string) ($p->descripcion ?? '')), 0, 120) ?: '-'
                 );
@@ -1188,7 +1202,7 @@ TXT;
         string $intent,
     ): string {
         if ($intent === 'help') {
-            return 'Puedo ayudarte con productos, precios, stock, cómo comprar, formas de pago o el estado de tu pedido. ¿Buscas algo del catálogo o un regalo para alguien?';
+            return 'Puedo ayudarte con productos, precios, si algo está disponible, cómo comprar, formas de pago o el estado de tu pedido. ¿Buscas algo del catálogo o un regalo para alguien?';
         }
         if ($intent === 'courtesy') {
             return '¡Con gusto! Si se te ocurre otro regalo o producto, aquí estoy.';
@@ -1238,7 +1252,7 @@ TXT;
                 return "Tenemos {$catalogCount} productos en el catálogo. Ábrelo en Inicio para verlos todos, o dime para quién buscas y te recomiendo algunos.";
             }
 
-            return "Tenemos más de {$catalogCount} productos. Te recomendamos estos; el precio y el stock van en las tarjetas. ¿Es para alguien en especial?";
+            return "Tenemos más de {$catalogCount} productos. Te recomendamos estos; el precio va en las tarjetas. ¿Es para alguien en especial?";
         }
 
         if ($pedido !== null) {
@@ -1272,13 +1286,13 @@ TXT;
                 $stock = (int) $p->stock;
 
                 return sprintf(
-                    'Te recomiendo %s. Precio y stock están en la tarjeta; usa Ver o Agregar.%s',
+                    'Te recomiendo %s. El precio está en la tarjeta; usa Ver o Agregar.%s',
                     $p->nombre,
                     $stock < 1 ? ' Por ahora está agotado.' : ''
                 );
             }
 
-            return 'Te recomendamos estas opciones. El precio y el stock van en las tarjetas; toca Ver o Agregar. ¿Quieres otra idea o un presupuesto?';
+            return 'Te recomendamos estas opciones. El precio va en las tarjetas; toca Ver o Agregar. ¿Quieres otra idea o un presupuesto?';
         }
 
         return 'No encontré un producto exacto con esa búsqueda. Prueba con otra palabra (ej. «cerdita», «cajita», «flores») o revisa el catálogo en Inicio. También puedo explicar cómo comprar o pagar.';
