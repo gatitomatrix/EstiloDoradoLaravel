@@ -66,10 +66,10 @@ class Celular
             return null;
         }
         if (! empty($pedido->telefono_contacto)) {
-            return self::deCliente((string) $pedido->telefono_contacto);
+            return self::normalizar((string) $pedido->telefono_contacto);
         }
         if (! empty($pedido->observacion) && preg_match('/\[CEL:(\d{9})\]/', (string) $pedido->observacion, $m)) {
-            return self::deCliente($m[1]);
+            return self::normalizar($m[1]);
         }
 
         return null;
@@ -78,18 +78,19 @@ class Celular
     /** Datos para el admin: número + enlace WhatsApp del cliente del pedido. */
     public static function contactoPedido($pedido, ?string $clienteTel = null): array
     {
-        $cel = self::desdePedido($pedido) ?: self::deCliente($clienteTel);
+        $cel = self::desdePedido($pedido) ?: self::normalizar($clienteTel);
         $id = $pedido->id_pedido ?? '';
         $nombre = trim((string) ($pedido->cliente_nombre ?? ''));
         $first = $nombre !== '' ? explode(' ', $nombre)[0] : '';
         $text = $first !== ''
             ? "Hola {$first}, te escribimos de Estilo Dorado por tu pedido #{$id}."
             : "Hola, te escribimos de Estilo Dorado por tu pedido #{$id}.";
+        $propio = $cel && $cel === self::deTienda();
 
         return [
             'telefono_contacto' => $cel,
-            'celular_fmt' => self::formato($cel),
-            'wa_url' => self::waMe($cel, $text),
+            'celular_fmt' => $cel ? '+51 '.$cel : null,
+            'wa_url' => $propio ? null : self::waMe($cel, $text),
         ];
     }
 }

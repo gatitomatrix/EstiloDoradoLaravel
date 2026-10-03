@@ -101,7 +101,7 @@ class PedidoPagoController extends Controller
 
 
         $user = $request->user();
-        $cel = Celular::deCliente($data['telefono'] ?? null);
+        $cel = Celular::normalizar($data['telefono'] ?? null);
         if (! $cel) {
             return response()->json([
                 'success' => false,
@@ -449,7 +449,7 @@ class PedidoPagoController extends Controller
         $pedido->save();
 
         $actual = Celular::deCliente($user->telefono ?? null);
-        if (! $actual && $cel) {
+        if (! $actual && $cel && $cel !== Celular::deTienda()) {
             $user->telefono = $cel;
             $user->save();
         }
