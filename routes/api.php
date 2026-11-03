@@ -38,6 +38,7 @@ use App\Http\Controllers\Api\FeController;
 use App\Http\Controllers\Api\CheckoutController;
 use App\Http\Controllers\Api\PedidoPagoController;
 use App\Http\Controllers\Api\EnvioController;
+use App\Http\Controllers\Api\GeoController;
 use App\Http\Controllers\Api\ConsultaRucController;
 
 use App\Http\Controllers\Api\AsistenteController;
