@@ -32,7 +32,7 @@ class ProbarCorreo extends Command
         } catch (\Throwable $e) {
             $this->error('Falló: '.$e->getMessage());
             $this->line('Mailpit: MAIL_HOST=127.0.0.1 MAIL_PORT=1025 y `mailpit` abierto.');
-            $this->line('Gmail: MAIL_HOST=smtp.gmail.com MAIL_PORT=587 + contraseña de aplicación.');
+            $this->line('En Render gratis: MAIL_MAILER=brevo y BREVO_API_KEY. El puerto 587 está bloqueado.');
             return self::FAILURE;
         }
 
